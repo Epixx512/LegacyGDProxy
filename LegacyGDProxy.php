@@ -17,10 +17,10 @@ const FALLBACKIPS=[
 const ROBTOPGAMESPATHS=[
     '/database/accounts/backupGJAccountNew.php','/database/accounts/syncGJAccountNew.php',];
 
-const ENDPOINTREWRITES=[
+const ENDPOINTREWRITES=[ // for 2.0, since many of the endpoints it uses no longer exist on the server. i find it interesting that a lot of them have a "21" suffix, despite it being 2.0.
     '/database/updateGJUserScore21.php'=>'/database/updateGJUserScore22.php','/database/downloadGJLevel21.php'=>'/database/downloadGJLevel22.php','/database/downloadGJLevel20.php'=>'/database/downloadGJLevel22.php','/database/getGJComments20.php'=>'/database/getGJComments21.php','/database/likeGJItem20.php'=>'/database/likeGJItem211.php','/database/uploadGJComment20.php'=>'/database/uploadGJComment21.php','/database/rateGJStars20.php'=>'/database/rateGJStars21.php',];
 
-const VERSIONMAP=[
+const VERSIONMAP=[ // map used for the version in the desc
     '1'=>'1.0','2'=>'1.1','3'=>'1.2','4'=>'1.3','5'=>'1.4','6'=>'1.5','7'=>'1.6','17'=>'1.7','18'=>'1.8','19'=>'1.9','20'=>'2.0','21'=>'2.1','22'=>'2.2',];
 
 function xorCipher(string $s,string $key): string { // generates cycled xor ciphers
@@ -136,9 +136,9 @@ function lookupUser(string $username,string $key): ?string {
     return parseColonKV($text)[$key] ?? null;
 }
 
-function lookupPlayerId(string $accountId): ?string {
-    $text=requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$accountId,'secret'=>COMMONSECRET]); // also provided by getGJUsers20.php, but this one takes an account id instead of a username
-    return parseColonKV($text)['2'] ?? null;
+function lookupUserByAccountID(string $accountId,string $key): ?string {
+    $text=requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$accountId,'secret'=>COMMONSECRET]); // similar response to getGJUsers20.php, but this one takes an accountID instead of a username
+    return parseColonKV($text)[$key] ?? null;
 }
 
 function sendResponse(int $status,array $headers,string $body): void {
@@ -244,7 +244,7 @@ if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') { //
 if (isset(ENDPOINTREWRITES[$bare])) {
     $bare=ENDPOINTREWRITES[$bare];
 }
-if ($bare==='/database/accounts/syncGJAccount20.php') { // 2.0 save/load endpoint rewrites
+if ($bare==='/database/accounts/syncGJAccount20.php') { // 2.0 save/load endpoint rewrites, as well as using the other domain name
     $target=ROBTOPGAMES;
     $bare='/database/accounts/syncGJAccountNew.php';
 }
@@ -257,7 +257,7 @@ parse_str($body,$flat);
 $modified=false;
 
 if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
-    if (isset($flat['password'])) {
+    if (isset($flat['password'])) { // modify save/load to use accountID and gjp2 rather than userName and password, this is now necessary as of early 2026
         $flat['gjp2']=makeGjp2($flat['password']);
         unset($flat['password']);
         $modified=true;
@@ -340,7 +340,7 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
     }
 } elseif ($target===BOOMLINGS && $bare==='/database/getGJScores20.php') { // scores endpoint now requires the player id be attached on the request too for some reason ???
     if (isset($flat['accountID'])) {
-        $playerId=lookupPlayerId($flat['accountID']);
+        $playerId=lookupUserByAccountID($flat['accountID'],'2');
         if ($playerId===null) {
             http_response_code(502);
             echo 'player ID lookup failed';
