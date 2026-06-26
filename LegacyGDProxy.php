@@ -82,7 +82,7 @@ function resolveRealIp(string $host): string {
     return $ip;
 }
 
-function curl(string $host,string $path,string $method,array $headers,string $body): array {
+function sendRequest(string $host,string $path,string $method,array $headers,string $body): array {
     $headers=array_values(array_filter($headers,fn($h)=>stripos($h,'user-agent')!==0 && stripos($h,'accept')!==0));
     $headers[]='User-Agent;';
     $headers[]='Accept:';
@@ -117,12 +117,12 @@ function curl(string $host,string $path,string $method,array $headers,string $bo
     return [$status,$rh,$rb];
 }
 
-function lookup(string $host,string $path,array $params): string {
-    [,,$body]=curl($host,$path,'POST',['Content-Type: application/x-www-form-urlencoded'],http_build_query($params));
+function requestEndpoint(string $host,string $path,array $params): string {
+    [,,$body]=sendRequest($host,$path,'POST',['Content-Type: application/x-www-form-urlencoded'],http_build_query($params));
     return trim($body);
 }
 
-function parseKV(string $text): array {
+function parseColonKV(string $text): array {
     $parts=explode(':',$text);
     $d=[];
     for ($i=0; $i+1<count($parts); $i+=2) {
@@ -132,13 +132,13 @@ function parseKV(string $text): array {
 }
 
 function lookupUser(string $username,string $key): ?string {
-    $text=lookup(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$username]);
-    return parseKV($text)[$key] ?? null;
+    $text=requestEndpoint(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$username]);
+    return parseColonKV($text)[$key] ?? null;
 }
 
 function lookupPlayerId(string $accountId): ?string {
-    $text=lookup(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$accountId,'secret'=>COMMONSECRET]);
-    return parseKV($text)['2'] ?? null;
+    $text=requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$accountId,'secret'=>COMMONSECRET]);
+    return parseColonKV($text)['2'] ?? null;
 }
 
 function sendResponse(int $status,array $headers,string $body): void {
@@ -209,7 +209,7 @@ foreach (getallheaders() as $k=>$v) {
 
 if ($method!=='POST') {
     $fwd[]='Host: '.$target;
-    [$s,$rh,$rb]=curl($target,$uri,$method,$fwd,$body);
+    [$s,$rh,$rb]=sendRequest($target,$uri,$method,$fwd,$body);
     sendResponse($s,$rh,$rb);
     exit;
 }
@@ -224,15 +224,15 @@ if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') {
         sendResponse(200,[],'-1');
         exit;
     }
-    $userText=lookup(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$userName]);
-    $userKv=parseKV($userText);
+    $userText=requestEndpoint(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$userName]);
+    $userKv=parseColonKV($userText);
     $accountID=$userKv['16'] ?? null;
     $playerID=$userKv['2'] ?? null;
     if ($accountID===null || $playerID===null) {
         sendResponse(200,[],'-1');
         exit;
     }
-    $check=lookup(BOOMLINGS,'/database/getGJFriendRequests20.php',['secret'=>COMMONSECRET,'accountID'=>$accountID,'gjp2'=>makeGjp2($password)]);
+    $check=requestEndpoint(BOOMLINGS,'/database/getGJFriendRequests20.php',['secret'=>COMMONSECRET,'accountID'=>$accountID,'gjp2'=>makeGjp2($password)]);
     if (trim($check)==='-1') {
         sendResponse(200,[],'-1');
         exit;
@@ -285,7 +285,7 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
     }
 } elseif ($target===BOOMLINGS && $bare==='/database/updateGJUserScore22.php') {
     if (!isset($flat['diamonds']) || !isset($flat['accSpider']) || !isset($flat['accExplosion'])) {
-        $info=parseKV(lookup(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$flat['accountID'] ?? '','secret'=>COMMONSECRET]));
+        $info=parseColonKV(requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$flat['accountID'] ?? '','secret'=>COMMONSECRET]));
         if (!isset($flat['diamonds'])) $flat['diamonds']=$info['46'] ?? '0';
         if (!isset($flat['accSpider'])) $flat['accSpider']=$info['43'] ?? '0';
         if (!isset($flat['accExplosion'])) $flat['accExplosion']=$info['48'] ?? '0';
@@ -354,7 +354,7 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
 $newBody=$modified ? http_build_query($flat) : $body;
 $fwd[]='Host: '.$target;
 $fwd[]='Content-Type: application/x-www-form-urlencoded';
-[$status,$respHeaders,$respBody]=curl($target,$bare,'POST',$fwd,$newBody);
+[$status,$respHeaders,$respBody]=sendRequest($target,$bare,'POST',$fwd,$newBody);
 
 if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
     $respBody=str_replace('https://','http://',$respBody);
