@@ -23,7 +23,7 @@ const ENDPOINTREWRITES=[
 const VERSIONMAP=[
     '1'=>'1.0','2'=>'1.1','3'=>'1.2','4'=>'1.3','5'=>'1.4','6'=>'1.5','7'=>'1.6','17'=>'1.7','18'=>'1.8','19'=>'1.9','20'=>'2.0','21'=>'2.1','22'=>'2.2',];
 
-function xorCipher(string $s,string $key): string {
+function xorCipher(string $s,string $key): string { // generates cycled xor ciphers
     $out='';
     $kl=strlen($key);
     for ($i=0; $i<strlen($s); $i++) {
@@ -32,7 +32,7 @@ function xorCipher(string $s,string $key): string {
     return $out;
 }
 
-function makeChk(array $values,string $key,string $salt=''): string {
+function makeChk(array $values,string $key,string $salt=''): string { // generates chk, which is kind of like a signature. required by some endpoints, such as uploadGJComment21.php.
     $values[]=$salt;
     $hashed=sha1(implode('',array_map('strval',$values)));
     return base64_encode(xorCipher($hashed,$key));
@@ -42,7 +42,7 @@ function makeGjp2(string $password): string {
     return sha1($password.GJP2SALT);
 }
 
-function makeSeed2(array $flat): string {
+function makeSeed2(array $flat): string { // specifically to get update score working on 2.0, since it lacks fields the server now requires, and as a result we need to make a new signature to validate the new request. this is pretty related to chk.
     $vals=[
         $flat['accountID'] ?? '0',$flat['userCoins'] ?? '0',$flat['demons'] ?? '0',$flat['stars'] ?? '0',$flat['coins'] ?? '0',$flat['iconType'] ?? '0',$flat['icon'] ?? '0',$flat['diamonds'] ?? '0',$flat['accIcon'] ?? '0',$flat['accShip'] ?? '0',$flat['accBall'] ?? '0',$flat['accBird'] ?? '0',$flat['accDart'] ?? '0',$flat['accRobot'] ?? '0',$flat['accGlow'] ?? '0',$flat['accSpider'] ?? '0',$flat['accExplosion'] ?? '0',];
     if (isset($flat['dinfo'])) {
@@ -122,7 +122,7 @@ function requestEndpoint(string $host,string $path,array $params): string {
     return trim($body);
 }
 
-function parseColonKV(string $text): array {
+function parseColonKV(string $text): array { // read the response from the endpoint and get the items that are needed
     $parts=explode(':',$text);
     $d=[];
     for ($i=0; $i+1<count($parts); $i+=2) {
@@ -137,7 +137,7 @@ function lookupUser(string $username,string $key): ?string {
 }
 
 function lookupPlayerId(string $accountId): ?string {
-    $text=requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$accountId,'secret'=>COMMONSECRET]);
+    $text=requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$accountId,'secret'=>COMMONSECRET]); // also provided by getGJUsers20.php, but this one takes an account id instead of a username
     return parseColonKV($text)['2'] ?? null;
 }
 
@@ -153,7 +153,7 @@ function sendResponse(int $status,array $headers,string $body): void {
     echo $body;
 }
 
-function fixVersionKey(string $entry): string {
+function fixVersionKey(string $entry): string { // spoof level version requirement
     $parts=explode(':',$entry);
     for ($i=0; $i+1<count($parts); $i+=2) {
         if ($parts[$i]==='13') {
@@ -164,7 +164,7 @@ function fixVersionKey(string $entry): string {
     return implode(':',$parts);
 }
 
-function injectVersionLabel(string $entry): string {
+function injectVersionLabel(string $entry): string { // adds the level's origin gd version to the description
     $parts=explode(':',$entry);
     $n=count($parts);
     $ver=null;
@@ -214,17 +214,17 @@ if ($method!=='POST') {
     exit;
 }
 
-if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') {
+if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') { // login fix
     parse_str($body,$loginParams);
     $userName=$loginParams['userName'] ?? '';
     $password=$loginParams['password'] ?? '';
     $udid=$loginParams['udid'] ?? '';
     $secret=$loginParams['secret'] ?? '';
-    if ($userName==='' || $password==='' || $udid==='' || $secret!==ACCOUNTSECRET) {
+    if ($userName==='' || $password==='' || $udid==='' || $secret!==ACCOUNTSECRET) { // even though were our own server, still best to implement the same restrictions as the regular server
         sendResponse(200,[],'-1');
         exit;
     }
-    $userText=requestEndpoint(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$userName]);
+    $userText=requestEndpoint(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$userName]); // loginGJAccount.php on the actual server has a stricter rate limit than the rest of the endpoints. my server kept getting rate limited, so this is a workaround. look up the user's profile by their username to get their account id and player id.
     $userKv=parseColonKV($userText);
     $accountID=$userKv['16'] ?? null;
     $playerID=$userKv['2'] ?? null;
@@ -232,7 +232,7 @@ if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') {
         sendResponse(200,[],'-1');
         exit;
     }
-    $check=requestEndpoint(BOOMLINGS,'/database/getGJFriendRequests20.php',['secret'=>COMMONSECRET,'accountID'=>$accountID,'gjp2'=>makeGjp2($password)]);
+    $check=requestEndpoint(BOOMLINGS,'/database/getGJFriendRequests20.php',['secret'=>COMMONSECRET,'accountID'=>$accountID,'gjp2'=>makeGjp2($password)]); // make sure the entered credentials are actually valid before giving the response. just check the user's friend requests and make sure the server gives an actual response.
     if (trim($check)==='-1') {
         sendResponse(200,[],'-1');
         exit;
@@ -244,7 +244,7 @@ if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') {
 if (isset(ENDPOINTREWRITES[$bare])) {
     $bare=ENDPOINTREWRITES[$bare];
 }
-if ($bare==='/database/accounts/syncGJAccount20.php') {
+if ($bare==='/database/accounts/syncGJAccount20.php') { // 2.0 save/load endpoint rewrites
     $target=ROBTOPGAMES;
     $bare='/database/accounts/syncGJAccountNew.php';
 }
@@ -273,7 +273,7 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
         $flat['accountID']=$acc;
         $modified=true;
     }
-    if ($bare==='/database/accounts/syncGJAccountNew.php') {
+    if ($bare==='/database/accounts/syncGJAccountNew.php') { // version spoofs for load, since it won't give our data unless the version is later than or equal to the version of the client that saved the data. we don't need this for save since the server accepts it and it's best to have slightly more compatibility.
         if (isset($flat['gameVersion']) && (int)$flat['gameVersion']<22) {
             $flat['gameVersion']='22';
             $modified=true;
@@ -283,7 +283,7 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
             $modified=true;
         }
     }
-} elseif ($target===BOOMLINGS && $bare==='/database/updateGJUserScore22.php') {
+} elseif ($target===BOOMLINGS && $bare==='/database/updateGJUserScore22.php') { // patch 2.0's updateGJUserScore22.php request
     if (!isset($flat['diamonds']) || !isset($flat['accSpider']) || !isset($flat['accExplosion'])) {
         $info=parseColonKV(requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$flat['accountID'] ?? '','secret'=>COMMONSECRET]));
         if (!isset($flat['diamonds'])) $flat['diamonds']=$info['46'] ?? '0';
@@ -294,7 +294,7 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
     }
 } elseif ($target===BOOMLINGS && in_array($bare,[
     '/database/downloadGJLevel22.php','/database/getGJDailyLevel.php','/database/getGJLevels21.php',],true)) {
-    if (isset($flat['gameVersion']) && (int)$flat['gameVersion']<22) {
+    if (isset($flat['gameVersion']) && (int)$flat['gameVersion']<22) { // client version spoof
         $flat['gameVersion']='22';
         $modified=true;
     }
@@ -302,12 +302,12 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
         $flat['binaryVersion']='47';
         $modified=true;
     }
-    if ($bare==='/database/getGJDailyLevel.php' && isset($flat['weekly'])) {
+    if ($bare==='/database/getGJDailyLevel.php' && isset($flat['weekly'])) { // rename the "weekly" param to "type", since event levels are now a thing and the server doesn't care about that parameter anymore
         $flat['type']=$flat['weekly'];
         unset($flat['weekly']);
         $modified=true;
     }
-    if ($bare==='/database/getGJLevels21.php') {
+    if ($bare==='/database/getGJLevels21.php') { // adds some commands to level search so you can get access some extra stuff
         $strLower=strtolower($flat['str'] ?? '');
         $reqType=$flat['type'] ?? '';
         if ($strLower==='gdspsent' && $reqType==='0') {
@@ -328,17 +328,17 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
             $modified=true;
         }
     }
-} elseif ($target===BOOMLINGS && $bare==='/database/uploadGJComment21.php') {
+} elseif ($target===BOOMLINGS && $bare==='/database/uploadGJComment21.php') { // add chk to the comment upload request for 2.0
     if (!isset($flat['chk'])) {
         $flat['chk']=makeChk([$flat['userName'] ?? '',$flat['comment'] ?? '',$flat['levelID'] ?? '',$flat['percentage'] ?? '0',$flat['commentType'] ?? '0'],COMMENTKEY,COMMENTSALT);
         $modified=true;
     }
-} elseif ($target===BOOMLINGS && $bare==='/database/deleteGJAccComment20.php') {
+} elseif ($target===BOOMLINGS && $bare==='/database/deleteGJAccComment20.php') { // for some reason the server now requires a targetAccountID field too but we can just set that to whatever the accountID field is
     if (isset($flat['accountID']) && !isset($flat['targetAccountID'])) {
         $flat['targetAccountID']=$flat['accountID'];
         $modified=true;
     }
-} elseif ($target===BOOMLINGS && $bare==='/database/getGJScores20.php') {
+} elseif ($target===BOOMLINGS && $bare==='/database/getGJScores20.php') { // scores endpoint now requires the player id be attached on the request too for some reason ???
     if (isset($flat['accountID'])) {
         $playerId=lookupPlayerId($flat['accountID']);
         if ($playerId===null) {
@@ -357,7 +357,7 @@ $fwd[]='Content-Type: application/x-www-form-urlencoded';
 [$status,$respHeaders,$respBody]=sendRequest($target,$bare,'POST',$fwd,$newBody);
 
 if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
-    $respBody=str_replace('https://','http://',$respBody);
+    $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
 }
 
 if ($target===BOOMLINGS && in_array($bare,[
