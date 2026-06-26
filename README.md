@@ -5,3 +5,4 @@ what this fixes in 2.0: login, save, load, scores, daily, weekly, comment upload
 extra things: search `gdspdailyhistory` (case insensitive) to access the history of daily levels. search `gdspweeklyhistory` (case insensitive) to access the history of weekly levels. search `gdspeventhistory` (case insensitive) to access the history of event levels. search `gdspsent` (case insensitive) to access moderator sent levels.
 if you are wondering what "gdsp" means, it is the original name of this project, "GDSecondaryProxy", which was in the form of a python 3 script.
 claude sonnet 4.6 was used to make skeleton code and to fix difficult bugs. i am somewhat new to php, but have had some experience. most of the code is human written.
+thanks go boomlings.dev for providing documentation for the server endpoints and parameters. charles proxy and proxifier were used to capture http traffic from 2.113.
