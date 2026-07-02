@@ -1,6 +1,6 @@
 <?php
 const LOGGING=false;
-const LOGFILE='';
+const LOGFILE='/var/www/LegacyGDProxy/coollog.txt';
 const BOOMLINGS='www.boomlings.com';
 const ROBTOPGAMES='www.robtopgames.org';
 const COMMONSECRET='Wmfd2893gb7';
@@ -10,6 +10,7 @@ const SEED2SALT='xI35fsAapCRg';
 const SEED2KEY='85271';
 const COMMENTKEY='29481';
 const COMMENTSALT='xPT6iUrtws0J';
+const LEVELPASSKEY='26364';
 
 const FALLBACKIPS=[
     BOOMLINGS=>['172.66.156.222','104.20.40.246','104.20.43.246'],ROBTOPGAMES=>['172.67.188.24','104.21.7.241'],];
@@ -164,17 +165,26 @@ function fixVersionKey(string $entry): string { // spoof level version requireme
     return implode(':',$parts);
 }
 
-function injectVersionLabel(string $entry): string { // adds the level's origin gd version to the description
+function injectVersionLabel(string $entry): string { // modify the response to have gd version as well as the level password
     $parts=explode(':',$entry);
     $n=count($parts);
     $ver=null;
     $descIdx=null;
+    $pass=null;
     for ($i=0; $i<$n-1; $i+=2) {
         if ($parts[$i]==='13') $ver=VERSIONMAP[$parts[$i+1]] ?? null;
         if ($parts[$i]==='3') $descIdx=$i+1;
+        if ($parts[$i]==='27' && $parts[$i+1]!=='Aw==') {
+            $decodedB64=base64_decode($parts[$i+1]);
+            if ($decodedB64!==false) {
+                $pass=substr(xorCipher($decodedB64,LEVELPASSKEY),1);
+            }
+        }
     }
     if ($ver!==null && $descIdx!==null) {
-        $parts[$descIdx]=base64_encode(base64_decode($parts[$descIdx]).' GD Version: '.$ver);
+        $suffix=' GD Version: '.$ver;
+        if ($pass!==null) $suffix.=', Password: '.$pass;
+        $parts[$descIdx]=base64_encode(base64_decode($parts[$descIdx]).$suffix);
     }
     return implode(':',$parts);
 }
