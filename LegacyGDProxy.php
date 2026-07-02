@@ -5,6 +5,8 @@ const BOOMLINGS='www.boomlings.com';
 const ROBTOPGAMES='www.robtopgames.org';
 const COMMONSECRET='Wmfd2893gb7';
 const ACCOUNTSECRET='Wmfv3899gc9';
+const LEVELSECRET='Wmfv2898gc9';
+const MODSECRET='Wmfp3879gc3';
 const GJP2SALT='mI29fmAnxgTs';
 const SEED2SALT='xI35fsAapCRg';
 const SEED2KEY='85271';
@@ -19,12 +21,74 @@ const ROBTOPGAMESPATHS=[
     '/database/accounts/backupGJAccountNew.php','/database/accounts/syncGJAccountNew.php',];
 
 const ENDPOINTREWRITES=[ // for 2.0, since many of the endpoints it uses no longer exist on the server. i find it interesting that a lot of them have a "21" suffix, despite it being 2.0.
-    '/database/updateGJUserScore21.php'=>'/database/updateGJUserScore22.php','/database/downloadGJLevel21.php'=>'/database/downloadGJLevel22.php','/database/downloadGJLevel20.php'=>'/database/downloadGJLevel22.php','/database/getGJComments20.php'=>'/database/getGJComments21.php','/database/likeGJItem20.php'=>'/database/likeGJItem211.php','/database/uploadGJComment20.php'=>'/database/uploadGJComment21.php','/database/rateGJStars20.php'=>'/database/rateGJStars21.php',];
+    '/database/updateGJUserScore21.php'=>'/database/updateGJUserScore22.php','/database/downloadGJLevel21.php'=>'/database/downloadGJLevel22.php','/database/downloadGJLevel20.php'=>'/database/downloadGJLevel22.php','/database/getGJComments20.php'=>'/database/getGJComments21.php','/database/likeGJItem20.php'=>'/database/likeGJItem211.php','/database/uploadGJComment20.php'=>'/database/uploadGJComment21.php','/database/rateGJStars20.php'=>'/database/rateGJStars211.php',];
+
+const SECRETS=[
+    '/database/deleteGJAccComment20.php'=>COMMONSECRET,
+    '/database/deleteGJComment20.php'=>COMMONSECRET,
+    '/database/getGJAccountComments20.php'=>COMMONSECRET,
+    '/database/getGJCommentHistory.php'=>COMMONSECRET,
+    '/database/getGJComments21.php'=>COMMONSECRET,
+    '/database/uploadGJAccComment20.php'=>COMMONSECRET,
+    '/database/uploadGJComment21.php'=>COMMONSECRET,
+    '/database/downloadGJLevel22.php'=>COMMONSECRET,
+    '/database/getGJDailyLevel.php'=>COMMONSECRET,
+    '/database/getGJGauntlets21.php'=>COMMONSECRET,
+    '/database/getGJLevelScores211.php'=>COMMONSECRET,
+    '/database/getGJLevelScoresPlat.php'=>COMMONSECRET,
+    '/database/getGJLevels21.php'=>COMMONSECRET,
+    '/database/getGJMapPacks21.php'=>COMMONSECRET,
+    '/database/rateGJStars211.php'=>COMMONSECRET,
+    '/database/reportGJLevel.php'=>COMMONSECRET,
+    '/database/updateGJDesc20.php'=>COMMONSECRET,
+    '/database/uploadGJLevel21.php'=>COMMONSECRET,
+    '/database/getGJLevelLists.php'=>COMMONSECRET,
+    '/database/uploadGJLevelList.php'=>COMMONSECRET,
+    '/database/getAccountURL.php'=>COMMONSECRET,
+    '/database/getSaveData.php'=>COMMONSECRET,
+    '/database/likeGJItem211.php'=>COMMONSECRET,
+    '/database/requestUserAccess.php'=>COMMONSECRET,
+    '/database/restoreGJItems.php'=>COMMONSECRET,
+    '/database/getGJChallenges.php'=>COMMONSECRET,
+    '/database/getGJRewards.php'=>COMMONSECRET,
+    '/database/getGJSecretReward.php'=>COMMONSECRET,
+    '/database/acceptGJFriendRequest20.php'=>COMMONSECRET,
+    '/database/blockGJUser20.php'=>COMMONSECRET,
+    '/database/deleteGJFriendRequests20.php'=>COMMONSECRET,
+    '/database/deleteGJMessages20.php'=>COMMONSECRET,
+    '/database/downloadGJMessage20.php'=>COMMONSECRET,
+    '/database/getGJFriendRequests20.php'=>COMMONSECRET,
+    '/database/getGJMessages20.php'=>COMMONSECRET,
+    '/database/getGJUserList20.php'=>COMMONSECRET,
+    '/database/readGJFriendRequest20.php'=>COMMONSECRET,
+    '/database/removeGJFriend20.php'=>COMMONSECRET,
+    '/database/unblockGJUser20.php'=>COMMONSECRET,
+    '/database/uploadFriendRequest20.php'=>COMMONSECRET,
+    '/database/uploadGJMessage20.php'=>COMMONSECRET,
+    '/database/getGJSongInfo.php'=>COMMONSECRET,
+    '/database/getGJTopArtists.php'=>COMMONSECRET,
+    '/database/getGJScores20.php'=>COMMONSECRET,
+    '/database/getGJUserInfo20.php'=>COMMONSECRET,
+    '/database/getGJUsers20.php'=>COMMONSECRET,
+    '/database/updateGJUserScore22.php'=>COMMONSECRET,
+    '/database/accounts/backupGJAccountNew.php'=>ACCOUNTSECRET,
+    '/database/accounts/loginGJAccount.php'=>ACCOUNTSECRET,
+    '/database/accounts/registerGJAccount.php'=>ACCOUNTSECRET,
+    '/database/accounts/syncGJAccountNew.php'=>ACCOUNTSECRET,
+    '/database/updateGJAccSettings20.php'=>ACCOUNTSECRET,
+    '/database/exitMPLobby.php'=>ACCOUNTSECRET,
+    '/database/joinMPLobby.php'=>ACCOUNTSECRET,
+    '/database/uploadMPComment.php'=>ACCOUNTSECRET,
+    '/database/deleteGJLevelUser20.php'=>LEVELSECRET,
+    '/database/deleteGJLevelList.php'=>LEVELSECRET,
+    '/database/rateGJDemon21.php'=>MODSECRET,
+    '/database/suggestGJStars20.php'=>MODSECRET,
+];
 
 const VERSIONMAP=[ // map used for the version in the desc
-    '1'=>'1.0','2'=>'1.1','3'=>'1.2','4'=>'1.3','5'=>'1.4','6'=>'1.5','7'=>'1.6','17'=>'1.7','18'=>'1.8','19'=>'1.9','20'=>'2.0','21'=>'2.1','22'=>'2.2',];
+    '1'=>'1.0','2'=>'1.1','3'=>'1.2','4'=>'1.3','5'=>'1.4','6'=>'1.5','7'=>'1.6','10'=>'1.7','18'=>'1.8','19'=>'1.9','20'=>'2.0','21'=>'2.1','22'=>'2.2',];
 
-function xorCipher(string $s,string $key): string { // generates cycled xor ciphers
+function xorCipher(string $s,string $key): string {
     $out='';
     $kl=strlen($key);
     for ($i=0; $i<strlen($s); $i++) {
@@ -211,6 +275,13 @@ $uri=$_SERVER['REQUEST_URI'];
 $bare=parse_url($uri,PHP_URL_PATH) ?: '/';
 $body=file_get_contents('php://input');
 
+if ($_SERVER['HTTP_USER_AGENT'] ?? '') {
+    http_response_code(403);
+    header('Content-Type: text/plain');
+    echo 'no';
+    exit;
+}
+
 $skipHeaders=['host','content-length','content-type','transfer-encoding','connection','proxy-connection','accept-encoding','accept','expect','user-agent'];
 $fwd=[];
 foreach (getallheaders() as $k=>$v) {
@@ -230,7 +301,7 @@ if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') { //
     $password=$loginParams['password'] ?? '';
     $udid=$loginParams['udid'] ?? '';
     $secret=$loginParams['secret'] ?? '';
-    if ($userName==='' || $password==='' || $udid==='' || $secret!==ACCOUNTSECRET) { // even though were our own server, still best to implement the same restrictions as the regular server
+    if ($userName==='' || $password==='' || $udid==='' || $secret!==SECRETS[$bare]) { // even though were our own server, still best to implement the same restrictions as the regular server
         sendResponse(200,[],'-1');
         exit;
     }
@@ -264,6 +335,10 @@ if ($bare==='/database/accounts/backupGJAccount.php') {
 }
 
 parse_str($body,$flat);
+if (isset(SECRETS[$bare]) && ($flat['secret'] ?? '')!==SECRETS[$bare]) {
+    sendResponse(200,[],'-1');
+    exit;
+}
 $modified=false;
 
 if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
