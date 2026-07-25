@@ -1,6 +1,7 @@
 <?php
 const LOGGING=false;
-const LOGFILE='/var/www/LegacyGDProxy/coollog.txt';
+const LOGFILE=''; // MAKE SURE TO FILL THIS OUT IF YOU WANT TO DO LOGGING
+const NGSOLVEPATH=''; // THIS TOO IF YOU WANT TO BYPASS SONG WHITELIST!!
 const BOOMLINGS='www.boomlings.com';
 const ROBTOPGAMES='www.robtopgames.org';
 const COMMONSECRET='Wmfd2893gb7';
@@ -14,14 +15,11 @@ const COMMENTKEY='29481';
 const COMMENTSALT='xPT6iUrtws0J';
 const LEVELPASSKEY='26364';
 
-const FALLBACKIPS=[
-    BOOMLINGS=>['172.66.156.222','104.20.40.246','104.20.43.246'],ROBTOPGAMES=>['172.67.188.24','104.21.7.241'],];
-
 const ROBTOPGAMESPATHS=[
     '/database/accounts/backupGJAccountNew.php','/database/accounts/syncGJAccountNew.php',];
 
 const ENDPOINTREWRITES=[ // for 2.0, since many of the endpoints it uses no longer exist on the server. i find it interesting that a lot of them have a "21" suffix, despite it being 2.0.
-    '/database/updateGJUserScore21.php'=>'/database/updateGJUserScore22.php','/database/downloadGJLevel21.php'=>'/database/downloadGJLevel22.php','/database/downloadGJLevel20.php'=>'/database/downloadGJLevel22.php','/database/getGJComments20.php'=>'/database/getGJComments21.php','/database/likeGJItem20.php'=>'/database/likeGJItem211.php','/database/uploadGJComment20.php'=>'/database/uploadGJComment21.php','/database/rateGJStars20.php'=>'/database/rateGJStars211.php',];
+    '/database/updateGJUserScore21.php'=>'/database/updateGJUserScore22.php','/database/downloadGJLevel21.php'=>'/database/downloadGJLevel22.php','/database/downloadGJLevel20.php'=>'/database/downloadGJLevel22.php','/database/getGJComments20.php'=>'/database/getGJComments21.php','/database/likeGJItem20.php'=>'/database/likeGJItem211.php','/database/uploadGJComment20.php'=>'/database/uploadGJComment21.php','/database/rateGJStars20.php'=>'/database/rateGJStars211.php','/database/getGJLevels19.php'=>'/database/getGJLevels21.php','/database/updateGJUserScore19.php'=>'/database/updateGJUserScore22.php','/database/getGJMapPacks.php'=>'/database/getGJMapPacks21.php','/database/downloadGJLevel19.php'=>'/database/downloadGJLevel22.php','/database/rateGJLevel.php'=>'/database/rateGJStars211.php','/database/getGJComments19.php'=>'/database/getGJComments21.php','/database/uploadGJComment19.php'=>'/database/uploadGJComment21.php','/database/uploadGJLevel19.php'=>'/database/uploadGJLevel21.php','/database/deleteGJLevelUser19.php'=>'/database/deleteGJLevelUser20.php','/database/updateGJDesc19.php'=>'/database/updateGJDesc20.php','/database/deleteGJComment19.php'=>'/database/deleteGJComment20.php','/database/getGJLevels.php'=>'/database/getGJLevels21.php','/database/downloadGJLevel.php'=>'/database/downloadGJLevel22.php','/database/likeGJLevel.php'=>'/database/likeGJItem211.php','/database/uploadGJLevel.php'=>'/database/uploadGJLevel21.php','/database/updateGJUserScore.php'=>'/database/updateGJUserScore22.php','/database/getGJScores.php'=>'/database/getGJScores20.php','/database/rateGJStars.php'=>'/database/rateGJStars211.php','/database/getGJScores19.php'=>'/database/getGJScores20.php',]; // why are there so many
 
 const SECRETS=[
     '/database/deleteGJAccComment20.php'=>COMMONSECRET,
@@ -68,6 +66,8 @@ const SECRETS=[
     '/database/getGJSongInfo.php'=>COMMONSECRET,
     '/database/getGJTopArtists.php'=>COMMONSECRET,
     '/database/getGJScores20.php'=>COMMONSECRET,
+    '/database/getGJCreators.php'=>COMMONSECRET,
+    '/database/getGJCreators19.php'=>COMMONSECRET,
     '/database/getGJUserInfo20.php'=>COMMONSECRET,
     '/database/getGJUsers20.php'=>COMMONSECRET,
     '/database/updateGJUserScore22.php'=>COMMONSECRET,
@@ -135,7 +135,6 @@ function resolveRealIp(string $host): string {
     if (!$ips) {
         $ip=trim((string)@file_get_contents($cache));
         if ($ip!=='') return $ip;
-        $ips=FALLBACKIPS[$host] ?? [];
     }
     if (!$ips) {
         http_response_code(502);
@@ -206,6 +205,12 @@ function lookupUserByAccountID(string $accountId,string $key): ?string {
     return parseColonKV($text)[$key] ?? null;
 }
 
+function rewriteCreatorsRequest(array $flat): array { // translates getGJCreators to a getGJScores request for creators since getGJCreators doesn't exist anymore
+    $flat['type']='creators';
+    $flat['count']='100';
+    return $flat;
+}
+
 function sendResponse(int $status,array $headers,string $body): void {
     http_response_code($status);
     $skip=['transfer-encoding','connection','content-length','content-encoding'];
@@ -218,18 +223,26 @@ function sendResponse(int $status,array $headers,string $body): void {
     echo $body;
 }
 
+function respondAndExit(int $status,array $headers,string $body,string $target='',string $bare='',string $reqBody=''): void {
+    if ($target!=='' && $bare!=='') {
+        writeLog('http://'.$target.$bare.' '.$status."\n".$reqBody."\n".$body."\n---\n");
+    }
+    sendResponse($status,$headers,$body);
+    exit;
+}
+
 function fixVersionKey(string $entry): string { // spoof level version requirement
     $parts=explode(':',$entry);
     for ($i=0; $i+1<count($parts); $i+=2) {
         if ($parts[$i]==='13') {
-            $parts[$i+1]='19';
+            $parts[$i+1]='1';
             break;
         }
     }
     return implode(':',$parts);
 }
 
-function injectVersionLabel(string $entry): string { // modify the response to have gd version as well as the level password
+function injectVersionLabel(string $entry,bool $skipEncode=false): string { // modify the response to have gd version as well as the level password
     $parts=explode(':',$entry);
     $n=count($parts);
     $ver=null;
@@ -238,7 +251,7 @@ function injectVersionLabel(string $entry): string { // modify the response to h
     for ($i=0; $i<$n-1; $i+=2) {
         if ($parts[$i]==='13') $ver=VERSIONMAP[$parts[$i+1]] ?? null;
         if ($parts[$i]==='3') $descIdx=$i+1;
-        if ($parts[$i]==='27' && $parts[$i+1]!=='Aw==') {
+        if ($parts[$i]==='27' && $parts[$i+1]!=='Aw==' && $parts[$i+1]!=='0') {
             $decodedB64=base64_decode($parts[$i+1]);
             if ($decodedB64!==false) {
                 $pass=substr(xorCipher($decodedB64,LEVELPASSKEY),1);
@@ -248,7 +261,11 @@ function injectVersionLabel(string $entry): string { // modify the response to h
     if ($ver!==null && $descIdx!==null) {
         $suffix=' GD Version: '.$ver;
         if ($pass!==null) $suffix.=', Password: '.$pass;
-        $parts[$descIdx]=base64_encode(base64_decode($parts[$descIdx]).$suffix);
+        if ($skipEncode) {
+            $parts[$descIdx]=$parts[$descIdx].$suffix;
+        } else {
+            $parts[$descIdx]=base64_encode(base64_decode($parts[$descIdx]).$suffix);
+        }
     }
     return implode(':',$parts);
 }
@@ -257,6 +274,114 @@ function writeLog(string $entry): void {
     if (LOGGING && LOGFILE!=='') {
         file_put_contents(LOGFILE,$entry,FILE_APPEND);
     }
+}
+
+function ngGet(string $url,string $jar): string { // for ng guard bypass challenge endpoint
+    $ch=curl_init($url);
+    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>true,CURLOPT_TIMEOUT=>15,CURLOPT_ENCODING=>'',CURLOPT_COOKIEFILE=>$jar,CURLOPT_COOKIEJAR=>$jar,CURLOPT_HTTPHEADER=>['User-Agent: Mozilla/5.0']]);
+    $r=curl_exec($ch);
+    curl_close($ch);
+    return $r ?: '';
+}
+
+function ngPost(string $url,string $body,string $jar): string { // also for ng guard but to send back the challenge data to the verify endpoint
+    $ch=curl_init($url);
+    curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>15,CURLOPT_ENCODING=>'',CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$body,CURLOPT_COOKIEFILE=>$jar,CURLOPT_COOKIEJAR=>$jar,CURLOPT_HTTPHEADER=>['User-Agent: Mozilla/5.0','Content-Type: application/json']]);
+    $r=curl_exec($ch);
+    curl_close($ch);
+    return $r ?: '';
+}
+
+function ngLeadingZeroBits(string $data): int {
+    $z=0;
+    for ($i=0;$i<strlen($data);$i++) {
+        $b=ord($data[$i]);
+        if ($b===0) { $z+=8; continue; }
+        for ($bit=7;$bit>=0;$bit--) {
+            if ($b & (1<<$bit)) break;
+            $z++;
+        }
+        break;
+    }
+    return $z;
+}
+
+function solveNGGuard(string $jar): bool { // this is how the ng guard is processed. it's surprisingly simple.
+    $c=json_decode(ngGet('https://www.newgrounds.com/_guard/api/v1/challenge',$jar),true);
+    if (!$c || !isset($c['payload'])) return false;
+    $b64=strtr($c['payload'],'-_','+/');
+    $b64.=str_repeat('=',(4-strlen($b64)%4)%4);
+    $payload=base64_decode($b64);
+    $prefix=$payload.':';
+    $start=microtime(true);
+    $nonce=null;
+    $ms=0;
+    if ($c['algo']==='argon2id') {
+        $tmp=tempnam(sys_get_temp_dir(),'ngc_');
+        file_put_contents($tmp,json_encode($c));
+        $result=shell_exec('python3 '.escapeshellarg(NGSOLVEPATH).' < '.escapeshellarg($tmp).' 2>/dev/null');
+        @unlink($tmp);
+        $solved=json_decode(trim($result ?: ''),true);
+        if (!$solved || !isset($solved['nonce'])) return false;
+        $nonce=$solved['nonce'];
+        $ms=$solved['solveTimeMs'] ?? 0;
+    } else {
+        for ($i=0;$i<10000000;$i++) {
+            if (ngLeadingZeroBits(hash('sha256',$prefix.$i,true))>=$c['bits']) {
+                $nonce=strval($i);
+                $ms=intval((microtime(true)-$start)*1000);
+                break;
+            }
+        }
+        if ($nonce===null) return false;
+    }
+    $body=['algo'=>$c['algo'],'bits'=>$c['bits'],'demo'=>false,'nonce'=>$nonce,'payload'=>$c['payload'],'sig'=>$c['sig'],'solveTimeMs'=>$ms];
+    if ($c['algo']==='argon2id' && isset($c['params'])) $body['params']=$c['params'];
+    $r=json_decode(ngPost('https://www.newgrounds.com/_guard/api/v1/verify',json_encode($body),$jar),true);
+    return $r['ok'] ?? false;
+}
+
+function fetchNGSongInfo(string $songID): ?string { // scrape the audio listen page's HTML body for the info we need
+    $jar=sys_get_temp_dir().'/LegacyGDProxy_ng.txt';
+    $html=ngGet('https://www.newgrounds.com/audio/listen/'.$songID,$jar);
+    if (strpos($html,'_guard')!==false) {
+        if (!solveNGGuard($jar)) return null;
+        $html=ngGet('https://www.newgrounds.com/audio/listen/'.$songID,$jar);
+    }
+    if (!preg_match('/og:audio"\s+content="([^"]+)"/',$html,$m)) return null; $mp3=htmlspecialchars_decode($m[1]);
+    $songName='Unknown';
+    if (preg_match_all('/<div class="item-user">.*?<h4>\s*<a href="https?:\/\/[a-z0-9\-]+\.newgrounds\.com">([^<]+)<\/a>.*?<div class="role">\s*<em>([^<]+)<\/em>/is', $html, $matches, PREG_SET_ORDER)) {
+    	$artistName = 'Unknown';
+    	foreach ($matches as $match) {
+            $name = trim($match[1]);
+            $role = trim($match[2]);
+            if (stripos($role, 'Artist') !== false) {
+            	$artistName = $name;
+            	break;
+            }
+    	}
+    } else {
+    	$artistName = 'Unknown';
+    }
+    $artistID=null;
+    if (preg_match('/<title>([^<]+)/',$html,$m)) {
+        $t=trim(preg_replace('/\s*[-|]?\s*Newgrounds\.com\s*$/','',$m[1]));
+        if (preg_match('/^(.+?)\s+by\s+(.+)$/',$t,$m2)) {
+            $songName=$m2[2].' - '.$m2[1];
+            $artistName=$m2[2];
+        } else {
+            $songName=$t;
+        }
+    }
+    if (preg_match('/"userId"\s*:\s*(\d+)/',$html,$m)) $artistID=(int)$m[1];
+    elseif (preg_match('/data-user-id="(\d+)"/',$html,$m)) $artistID=(int)$m[1];
+    $ch=curl_init($mp3);
+    curl_setopt_array($ch,[CURLOPT_NOBODY=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_TIMEOUT=>5,CURLOPT_FOLLOWLOCATION=>true,CURLOPT_HTTPHEADER=>['User-Agent: Mozilla/5.0']]);
+    curl_exec($ch);
+    $size=curl_getinfo($ch,CURLINFO_CONTENT_LENGTH_DOWNLOAD);
+    curl_close($ch);
+    $sizeMB=$size>0 ? round($size/1048576,2) : 0;
+    return '1~|~'.$songID.'~|~2~|~'.$songName.'~|~3~|~'.$artistID.'~|~4~|~'.$artistName.'~|~5~|~'.$sizeMB.'~|~6~|~~|~10~|~'.urlencode($mp3);
 }
 
 $rawHost=strtolower(explode(':',$_SERVER['HTTP_HOST'] ?? '')[0]);
@@ -275,10 +400,10 @@ $uri=$_SERVER['REQUEST_URI'];
 $bare=parse_url($uri,PHP_URL_PATH) ?: '/';
 $body=file_get_contents('php://input');
 
-if ($_SERVER['HTTP_USER_AGENT'] ?? '') {
+$uaWhitelisted=($target===ROBTOPGAMES) || ($target===BOOMLINGS && strpos($bare,'/database/accounts/')===0) || ($target===BOOMLINGS && $bare==='/database/');
+if (!$uaWhitelisted && ($_SERVER['HTTP_USER_AGENT'] ?? '')) { // spam protection, but whitelist the account related pages as well as the default /database/ page, which is what the actual server does
     http_response_code(403);
     header('Content-Type: text/plain');
-    echo 'no';
     exit;
 }
 
@@ -288,11 +413,10 @@ foreach (getallheaders() as $k=>$v) {
     if (!in_array(strtolower($k),$skipHeaders,true)) $fwd[]="$k: $v";
 }
 
-if ($method!=='POST') {
+if ($method!=='POST') { // GET methods don't really matter here, since they're not used by GD
     $fwd[]='Host: '.$target;
     [$s,$rh,$rb]=sendRequest($target,$uri,$method,$fwd,$body);
-    sendResponse($s,$rh,$rb);
-    exit;
+    respondAndExit($s,$rh,$rb,$target,$uri,$body);
 }
 
 if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') { // login fix
@@ -302,24 +426,20 @@ if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') { //
     $udid=$loginParams['udid'] ?? '';
     $secret=$loginParams['secret'] ?? '';
     if ($userName==='' || $password==='' || $udid==='' || $secret!==SECRETS[$bare]) { // even though were our own server, still best to implement the same restrictions as the regular server
-        sendResponse(200,[],'-1');
-        exit;
+        respondAndExit(200,[],'-1',$target,$bare,$body);
     }
-    $userText=requestEndpoint(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$userName]); // loginGJAccount.php on the actual server has a stricter rate limit than the rest of the endpoints. my server kept getting rate limited, so this is a workaround. look up the user's profile by their username to get their account id and player id.
+    $userText=requestEndpoint(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$userName]); // loginGJAccount.php on the actual server has a stricter rate limit than the rest of the endpoints. my server kept getting rate limited, so this is a workaround. look up the user's profile by their username to get their account id and player id. this is also to check if an account with that username actually exists. otherwise, reject the login request immediately without checking the password.
     $userKv=parseColonKV($userText);
     $accountID=$userKv['16'] ?? null;
     $playerID=$userKv['2'] ?? null;
     if ($accountID===null || $playerID===null) {
-        sendResponse(200,[],'-1');
-        exit;
+        respondAndExit(200,[],'-1',$target,$bare,$body);
     }
-    $check=requestEndpoint(BOOMLINGS,'/database/getGJFriendRequests20.php',['secret'=>COMMONSECRET,'accountID'=>$accountID,'gjp2'=>makeGjp2($password)]); // make sure the entered credentials are actually valid before giving the response. just check the user's friend requests and make sure the server gives an actual response.
+    $check=requestEndpoint(BOOMLINGS,'/database/getGJFriendRequests20.php',['secret'=>COMMONSECRET,'accountID'=>$accountID,'gjp2'=>makeGjp2($password)]); // make sure the entered credentials are actually valid before giving a successful response. just check the user's friend requests (or messages or whatever) and make sure the server gives an actual response instead of an error.
     if (trim($check)==='-1') {
-        sendResponse(200,[],'-1');
-        exit;
+        respondAndExit(200,[],'-1',$target,$bare,$body);
     }
-    sendResponse(200,[],$accountID.','.$playerID);
-    exit;
+    respondAndExit(200,[],$accountID.','.$playerID,$target,$bare,$body);
 }
 
 if (isset(ENDPOINTREWRITES[$bare])) {
@@ -329,15 +449,19 @@ if ($bare==='/database/accounts/syncGJAccount20.php') { // 2.0 save/load endpoin
     $target=ROBTOPGAMES;
     $bare='/database/accounts/syncGJAccountNew.php';
 }
+if ($bare==='/database/accounts/syncGJAccount.php') {
+    $target=ROBTOPGAMES;
+    $bare='/database/accounts/syncGJAccountNew.php';
+}
 if ($bare==='/database/accounts/backupGJAccount.php') {
     $target=ROBTOPGAMES;
     $bare='/database/accounts/backupGJAccountNew.php';
 }
 
 parse_str($body,$flat);
+$origGameVersion=$flat['gameVersion'] ?? null;
 if (isset(SECRETS[$bare]) && ($flat['secret'] ?? '')!==SECRETS[$bare]) {
-    sendResponse(200,[],'-1');
-    exit;
+    respondAndExit(200,[],'-1',$target,$bare,$body);
 }
 $modified=false;
 
@@ -359,16 +483,23 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
         $modified=true;
     }
     if ($bare==='/database/accounts/syncGJAccountNew.php') { // version spoofs for load, since it won't give our data unless the version is later than or equal to the version of the client that saved the data. we don't need this for save since the server accepts it and it's best to have slightly more compatibility.
-        if (isset($flat['gameVersion']) && (int)$flat['gameVersion']<22) {
+        if (!isset($flat['gameVersion']) || (int)$flat['gameVersion']<22) {
             $flat['gameVersion']='22';
             $modified=true;
         }
-        if (isset($flat['binaryVersion']) && (int)$flat['binaryVersion']<42) {
+        if (!isset($flat['binaryVersion']) || (int)$flat['binaryVersion']<42) {
             $flat['binaryVersion']='47';
             $modified=true;
         }
     }
 } elseif ($target===BOOMLINGS && $bare==='/database/updateGJUserScore22.php') { // patch 2.0's updateGJUserScore22.php request
+    if (isset($flat['accountID']) && $flat['accountID']==='0') {
+        unset($flat['accountID']);
+        $modified=true;
+    }
+    if (!isset($flat['gjp']) && !isset($flat['gjp2']) && !isset($flat['accountID'])) {
+        respondAndExit(200,[],'1',$target,$bare,$body);
+    }
     if (!isset($flat['diamonds']) || !isset($flat['accSpider']) || !isset($flat['accExplosion'])) {
         $info=parseColonKV(requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$flat['accountID'] ?? '','secret'=>COMMONSECRET]));
         if (!isset($flat['diamonds'])) $flat['diamonds']=$info['46'] ?? '0';
@@ -423,16 +554,48 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
         $flat['targetAccountID']=$flat['accountID'];
         $modified=true;
     }
+} elseif ($target===BOOMLINGS && ($bare==='/database/getGJCreators.php' || $bare==='/database/getGJCreators19.php')) {
+    $bare='/database/getGJScores20.php';
+    $flat=rewriteCreatorsRequest($flat);
+    $modified=true;
 } elseif ($target===BOOMLINGS && $bare==='/database/getGJScores20.php') { // scores endpoint now requires the player id be attached on the request too for some reason ???
-    if (isset($flat['accountID'])) {
+    if (isset($flat['accountID']) && $flat['accountID']==='0') {
+        unset($flat['accountID']);
+        $modified=true;
+    } elseif (isset($flat['accountID'])) {
         $playerId=lookupUserByAccountID($flat['accountID'],'2');
         if ($playerId===null) {
-            http_response_code(502);
-            echo 'player ID lookup failed';
-            exit;
+            respondAndExit(200,[],'-1',$target,$bare,$body);
         }
         $flat['udid']=$playerId;
         $modified=true;
+    }
+}
+
+$musicLibUrl = null;
+if ($target === BOOMLINGS && $bare === '/database/getGJSongInfo.php') { // add support for NONG songs, such as music library, NCS, and Chompo. newgrounds audio ids are capped at 7 digits (i think? this would be bad if that's wrong.), and music library song ids are always 8 digits or more because of the offset.
+    $songID = $flat['songID'] ?? '';
+    if (strlen($songID) >= 8 && ctype_digit($songID)) { // if the song id is 8 digits or more, it's a NONG. so we just put it at the end of the music library CDN's URL. boomlings.dev says it's followed by .mp3, but from what i've seen, the songs are .ogg. just test them both to be safe, and if one of them hits, return it.
+        $cdnBase = 'http://geometrydashfiles.b-cdn.net/music/' . $songID;
+        foreach (['.ogg', '.mp3'] as $ext) {
+            $ch = curl_init($cdnBase . $ext);
+            curl_setopt_array($ch, [
+                CURLOPT_NOBODY => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 5,
+                CURLOPT_FOLLOWLOCATION => true,
+            ]);
+            curl_exec($ch);
+            $code = curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+            curl_close($ch);
+            if ($code === 200) {
+                $musicLibUrl = $cdnBase . $ext;
+                break;
+            }
+        }
+        if ($musicLibUrl === null) {
+            respondAndExit(200, [], '-1', $target, $bare, $body);
+        }
     }
 }
 
@@ -449,7 +612,8 @@ if ($target===BOOMLINGS && in_array($bare,[
     '/database/downloadGJLevel22.php','/database/getGJLevels21.php',],true)) {
     if ($bare==='/database/downloadGJLevel22.php') {
         $parts=explode('#',$respBody,2);
-        $parts[0]=fixVersionKey(injectVersionLabel($parts[0]));
+        $skipEncode=($origGameVersion===null || (int)$origGameVersion<=19);
+        $parts[0]=fixVersionKey(injectVersionLabel($parts[0],$skipEncode));
         $respBody=implode('#',$parts);
     } else {
         $sections=explode('#',$respBody);
@@ -461,5 +625,19 @@ if ($target===BOOMLINGS && in_array($bare,[
     }
 }
 
-writeLog('http://'.$target.$bare.' '.$status."\n".$newBody."\n".$respBody."\n---\n");
-sendResponse($status,$respHeaders,$respBody);
+if ($musicLibUrl !== null && trim($respBody) !== '-1') {
+    $songParts = explode('~|~', $respBody);
+    for ($i = 0; $i < count($songParts) - 1; $i += 2) {
+        if ($songParts[$i] === '10' || $songParts[$i] === '16') {
+            $songParts[$i + 1] = urlencode($musicLibUrl);
+        }
+    }
+    $respBody = implode('~|~', $songParts);
+}
+
+if (($target===BOOMLINGS && $bare==='/database/getGJSongInfo.php' && trim($respBody)==='-1') || ($target===BOOMLINGS && $bare==='/database/getGJSongInfo.php' && trim($respBody)==='-2')) {
+    $ngSong=fetchNGSongInfo($flat['songID'] ?? '');
+    if ($ngSong!==null) $respBody=$ngSong;
+} // check if the song is allowed for use. if not, then do the bypass. i'm unsure if -2 is even needed here. the game considers -2 to be the "not allowed" signal, but the server returns -1 for non-whitelisted songs. i'm just doing both to be safe.
+
+respondAndExit($status,$respHeaders,$respBody,$target,$bare,$newBody);
