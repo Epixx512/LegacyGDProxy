@@ -1,7 +1,11 @@
 <?php
 const LOGGING=false;
-const LOGFILE=''; // MAKE SURE TO FILL THIS OUT IF YOU WANT TO DO LOGGING
-const NGSOLVEPATH=''; // THIS TOO IF YOU WANT TO BYPASS SONG WHITELIST!!
+const LOGMODE=''; // txt or sql
+const LOGFILE=''; // txt file path
+const LOGDB=''; // sqlite file path
+const LOGMAXBYTES=300*1024*1024; // max log file size before trimming oldest logs
+const LOGSIZE_CHECK_CHANCE=20; // denominator of the probability to check the size of the log to trim during a request
+const NGSOLVEPATH=''; // ngsolve.py path
 const BOOMLINGS='www.boomlings.com';
 const ROBTOPGAMES='www.robtopgames.org';
 const COMMONSECRET='Wmfd2893gb7';
@@ -223,9 +227,115 @@ function sendResponse(int $status,array $headers,string $body): void {
     echo $body;
 }
 
+function getLogDb(): ?PDO {
+    static $db=null;
+    static $failed=false;
+    if ($db!==null) return $db;
+    if ($failed) return null;
+    try {
+        $db=new PDO('sqlite:'.LOGDB);
+        $db->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);
+        $db->exec('PRAGMA journal_mode=WAL');
+        $db->exec('PRAGMA synchronous=NORMAL');
+        $db->exec('PRAGMA busy_timeout=5000');
+        $db->exec('PRAGMA auto_vacuum=INCREMENTAL');
+        $db->exec('CREATE TABLE IF NOT EXISTS logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts INTEGER NOT NULL,
+            ip TEXT,
+            target TEXT,
+            path TEXT,
+            status INTEGER,
+            request_body TEXT,
+            response_body TEXT
+        )');
+        $existingCols=$db->query('PRAGMA table_info(logs)')->fetchAll(PDO::FETCH_COLUMN,1);
+        if (!in_array('ip',$existingCols,true)) {
+            $db->exec('ALTER TABLE logs ADD COLUMN ip TEXT');
+        }
+        $db->exec('CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts)');
+        $db->exec('CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip)');
+    } catch (Throwable $e) {
+        $db=null;
+        $failed=true;
+        return null;
+    }
+    return $db;
+}
+
+function pruneLogDbIfNeeded(PDO $db): void {
+    clearstatcache(true,LOGDB);
+    $size=@filesize(LOGDB);
+    if ($size===false || $size<LOGMAXBYTES) return;
+    try {
+        $count=(int)$db->query('SELECT COUNT(*) FROM logs')->fetchColumn();
+        if ($count===0) return;
+        $deleteBatch=max(100,intval($count*0.1));
+        $db->exec('DELETE FROM logs WHERE id IN (SELECT id FROM logs ORDER BY ts ASC LIMIT '.$deleteBatch.')');
+        $db->exec('PRAGMA incremental_vacuum(2000)');
+    } catch (Throwable $e) {
+    }
+}
+
+function pruneTxtLogIfNeeded(): void {
+    clearstatcache(true,LOGFILE);
+    $size=@filesize(LOGFILE);
+    if ($size===false || $size<LOGMAXBYTES) return;
+    $keepBytes=intval(LOGMAXBYTES*0.8);
+    $src=@fopen(LOGFILE,'rb');
+    if ($src===false) return;
+    fseek($src,-$keepBytes,SEEK_END);
+    $tmp=LOGFILE.'.tmp';
+    $dst=@fopen($tmp,'wb');
+    if ($dst===false) { fclose($src); return; }
+    stream_copy_to_stream($src,$dst);
+    fclose($src);
+    fclose($dst);
+    @rename($tmp,LOGFILE);
+}
+
+function writeLog(string $target,string $path,int $status,string $reqBody,string $respBody): void {
+    if (!LOGGING) return;
+    $ip=$_SERVER['REMOTE_ADDR'] ?? '';
+    if (LOGMODE==='txt') {
+        writeLogTxt($ip,$target,$path,$status,$reqBody,$respBody);
+    } else {
+        writeLogSql($ip,$target,$path,$status,$reqBody,$respBody);
+    }
+}
+
+function writeLogTxt(string $ip,string $target,string $path,int $status,string $reqBody,string $respBody): void {
+    $entry=$ip.' http://'.$target.$path.' '.$status."\n".$reqBody."\n".$respBody."\n---\n";
+    @file_put_contents(LOGFILE,$entry,FILE_APPEND|LOCK_EX);
+    if (random_int(1,LOGSIZE_CHECK_CHANCE)===1) {
+        pruneTxtLogIfNeeded();
+    }
+}
+
+function writeLogSql(string $ip,string $target,string $path,int $status,string $reqBody,string $respBody): void {
+    $db=getLogDb();
+    if ($db===null) return;
+    try {
+        $stmt=$db->prepare('INSERT INTO logs (ts,ip,target,path,status,request_body,response_body) VALUES (:ts,:ip,:target,:path,:status,:req,:resp)');
+        $stmt->execute([
+            ':ts'=>time(),
+            ':ip'=>$ip,
+            ':target'=>$target,
+            ':path'=>$path,
+            ':status'=>$status,
+            ':req'=>$reqBody,
+            ':resp'=>$respBody,
+        ]);
+        if (random_int(1,LOGSIZE_CHECK_CHANCE)===1) {
+            pruneLogDbIfNeeded($db);
+        }
+    } catch (Throwable $e) {
+    }
+}
+
 function respondAndExit(int $status,array $headers,string $body,string $target='',string $bare='',string $reqBody=''): void {
     if ($target!=='' && $bare!=='') {
-        writeLog('http://'.$target.$bare.' '.$status."\n".$reqBody."\n".$body."\n---\n");
+        writeLog($target,$bare,$status,$reqBody,$body);
     }
     sendResponse($status,$headers,$body);
     exit;
@@ -268,12 +378,6 @@ function injectVersionLabel(string $entry,bool $skipEncode=false): string { // m
         }
     }
     return implode(':',$parts);
-}
-
-function writeLog(string $entry): void {
-    if (LOGGING && LOGFILE!=='') {
-        file_put_contents(LOGFILE,$entry,FILE_APPEND);
-    }
 }
 
 function ngGet(string $url,string $jar): string { // for ng guard bypass challenge endpoint
