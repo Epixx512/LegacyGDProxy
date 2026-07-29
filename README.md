@@ -3,3 +3,4 @@ this should get pretty much every online feature functional. login+save+load wor
 you can also search "gdspdailyhistory", "gdspweeklyhistory", "gdspsent", or "gdspeventhistory" if you want those lists. "gdsp" is short for the original name of this project, "GDSecondaryProxy", which was in the form of a python 3 script.
 claude opus 4.6 was used to make skeleton code and to fix difficult bugs. some parts of the code were inspired by GDPS implementations, most notably https://github.com/Cvolton/GMDprivateServer/.
 thanks to https://boomlings.dev for providing documentation for the server endpoints and parameters. charles proxy and proxifier were used to capture http traffic from 2.113.
+ngsolve.py is the file that contains the ng guard logic. this is part of the feature that lets you use non-whitelisted audios.
