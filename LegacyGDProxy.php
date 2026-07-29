@@ -5,7 +5,7 @@ const LOGFILE=''; // path to txt file for logs. txt logs are just everything sto
 const LOGDB=''; // path to sqlite database for logs. sql logs are stored in these columns: id (log entry number), ts (unix timestamp), ip (the client's ip address), target (host), path, status, request_body, response_body in a table called "logs".
 const LOGMAXBYTES=300*1024*1024; // storage size quota (in bytes) for the log file. oldest log entries will be trimmed when space is exceeded.
 const LOGSIZE_CHECK_CHANCE=12; // roughly how often the script will check the log file size. the denominator under 1. so for example 20 means 1 in 20 chance on each log entry. less is more chance.
-const NGSOLVEPATH=''; // THIS IS REQUIRED!! path to the ngsolve.py file.
+const NGSOLVEPATH=''; // THIS IS REQUIRED!! path to the ngsolve.py file. python 3 is required for this.
 // these lines shouldn't need to be touched, but idk perhaps you will need to for some reason
 const BOOMLINGS='www.boomlings.com';
 const ROBTOPGAMES='www.robtopgames.org';
