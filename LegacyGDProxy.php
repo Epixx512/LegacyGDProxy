@@ -1,6 +1,6 @@
 <?php
 const LOGGING=false;
-const LOGMODE=''; // txt or sql. these fields aren't needed if logging is set to false.
+const LOGMODE=''; // txt or sql. these fields aren't needed if logging is set to false. for sql, sqlite will need to be installed first.
 const LOGFILE=''; // path to txt file for logs. txt logs are just everything stored in a new set of lines per log entry. can get messy pretty quickly.
 const LOGDB=''; // path to sqlite database for logs. sql logs are stored in these columns: id (log entry number), ts (unix timestamp), ip (the client's ip address), target (host), path, status, request_body, response_body in a table called "logs".
 const LOGMAXBYTES=300*1024*1024; // storage size quota (in bytes) for the log file. oldest log entries will be trimmed when space is exceeded.
