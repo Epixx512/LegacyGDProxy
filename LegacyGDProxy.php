@@ -476,7 +476,9 @@ function solveNGGuard(string $jar): bool { // this is how the ng guard is proces
     if ($c['algo']==='argon2id') {
         $tmp=tempnam(sys_get_temp_dir(),'ngc_');
         file_put_contents($tmp,json_encode($c));
-        $result=shell_exec('python3 '.escapeshellarg(NGSOLVEPATH).' < '.escapeshellarg($tmp).' 2>/dev/null');
+        $python=PHP_OS_FAMILY==='Windows'?'python':'python3';
+        $null=PHP_OS_FAMILY==='Windows'?'NUL':'/dev/null';
+        $result=shell_exec($python.' '.escapeshellarg(NGSOLVEPATH).' < '.escapeshellarg($tmp).' 2>'.$null);
         @unlink($tmp);
         $solved=json_decode(trim($result ?: ''),true);
         if (!$solved || !isset($solved['nonce'])) return false;
