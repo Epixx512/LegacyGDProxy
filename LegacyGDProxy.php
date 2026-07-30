@@ -272,7 +272,7 @@ function getLogDb(): ?PDO {
         $db->exec('PRAGMA synchronous=NORMAL');
         $db->exec('PRAGMA busy_timeout=5000');
         $db->exec('PRAGMA auto_vacuum=INCREMENTAL');
-        $db->exec('CREATE TABLE IF NOT EXISTS logs (
+        $db->exec('CREATE TABLE IF NOT EXISTS requests (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts INTEGER NOT NULL,
             ip TEXT,
@@ -282,12 +282,12 @@ function getLogDb(): ?PDO {
             request_body TEXT,
             response_body TEXT
         )');
-        $existingCols=$db->query('PRAGMA table_info(logs)')->fetchAll(PDO::FETCH_COLUMN,1);
+        $existingCols=$db->query('PRAGMA table_info(requests)')->fetchAll(PDO::FETCH_COLUMN,1);
         if (!in_array('ip',$existingCols,true)) {
-            $db->exec('ALTER TABLE logs ADD COLUMN ip TEXT');
+            $db->exec('ALTER TABLE requests ADD COLUMN ip TEXT');
         }
-        $db->exec('CREATE INDEX IF NOT EXISTS idx_logs_ts ON logs(ts)');
-        $db->exec('CREATE INDEX IF NOT EXISTS idx_logs_ip ON logs(ip)');
+        $db->exec('CREATE INDEX IF NOT EXISTS idx_logs_ts ON requests(ts)');
+        $db->exec('CREATE INDEX IF NOT EXISTS idx_logs_ip ON requests(ip)');
     } catch (Throwable $e) {
         $db=null;
         $failed=true;
@@ -300,10 +300,10 @@ function pruneLogDbIfNeeded(PDO $db): void {
     $size=@filesize(LOGDB);
     if ($size===false || $size<LOGMAXBYTES) return;
     try {
-        $count=(int)$db->query('SELECT COUNT(*) FROM logs')->fetchColumn();
+        $count=(int)$db->query('SELECT COUNT(*) FROM requests')->fetchColumn();
         if ($count===0) return;
         $deleteBatch=max(100,intval($count*0.1));
-        $db->exec('DELETE FROM logs WHERE id IN (SELECT id FROM logs ORDER BY ts ASC LIMIT '.$deleteBatch.')');
+        $db->exec('DELETE FROM requests WHERE id IN (SELECT id FROM requests ORDER BY ts ASC LIMIT '.$deleteBatch.')');
         $db->exec('PRAGMA incremental_vacuum(2000)');
     } catch (Throwable $e) {
     }
@@ -344,7 +344,7 @@ function writeLogSql(string $ip,string $target,string $path,int $status,string $
     $db=getLogDb();
     if ($db===null) return;
     try {
-        $stmt=$db->prepare('INSERT INTO logs (ts,ip,target,path,status,request_body,response_body) VALUES (:ts,:ip,:target,:path,:status,:req,:resp)');
+        $stmt=$db->prepare('INSERT INTO requests (ts,ip,target,path,status,request_body,response_body) VALUES (:ts,:ip,:target,:path,:status,:req,:resp)');
         $stmt->execute([
             ':ts'=>time(),
             ':ip'=>$ip,
