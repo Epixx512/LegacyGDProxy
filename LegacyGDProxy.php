@@ -2,7 +2,7 @@
 const LOGGING=false;
 const LOGMODE=''; // txt or sql. these fields aren't needed if logging is set to false. for sql, sqlite will need to be installed first.
 const LOGFILE=''; // path to txt file for logs. txt logs are just everything stored in a new set of lines per log entry. can get messy pretty quickly.
-const LOGDB=''; // path to sqlite database for logs. sql logs are stored in these columns: id (log entry number), ts (unix timestamp), ip (the client's ip address), target (host), path, status, request_body, response_body in a table called "logs".
+const LOGDB=''; // path to sqlite database for logs. sql logs are stored in these columns: id (log entry number), ts (unix timestamp), ip (the client's ip address), host, path, status, request_body, response_body, orig_host, orig_path, orig_request_body, orig_response_body (the last 4 being what the client actually sent/received before the proxy rewrote anything) in a table called "requests".
 const LOGMAXBYTES=300*1024*1024; // storage size quota (in bytes) for the log file. oldest log entries will be trimmed when space is exceeded.
 const LOGSIZE_CHECK_CHANCE=12; // roughly how often the script will check the log file size. the denominator under 1. so for example 20 means 1 in 20 chance on each log entry. less is more chance.
 const NGWHITELISTBYPASS=false; // turn on if you want to use non-whitelisted songs. you will need the ngsolve.py file.
@@ -23,7 +23,7 @@ const LEVELPASSKEY='26364';
 const ROBTOPGAMESPATHS=[
     '/database/accounts/backupGJAccountNew.php','/database/accounts/syncGJAccountNew.php',];
 const ENDPOINTREWRITES=[
-    '/database/updateGJUserScore21.php'=>'/database/updateGJUserScore22.php','/database/downloadGJLevel21.php'=>'/database/downloadGJLevel22.php','/database/downloadGJLevel20.php'=>'/database/downloadGJLevel22.php','/database/getGJComments20.php'=>'/database/getGJComments21.php','/database/likeGJItem20.php'=>'/database/likeGJItem211.php','/database/uploadGJComment20.php'=>'/database/uploadGJComment21.php','/database/rateGJStars20.php'=>'/database/rateGJStars211.php','/database/getGJLevels19.php'=>'/database/getGJLevels21.php','/database/updateGJUserScore19.php'=>'/database/updateGJUserScore22.php','/database/getGJMapPacks.php'=>'/database/getGJMapPacks21.php','/database/downloadGJLevel19.php'=>'/database/downloadGJLevel22.php','/database/rateGJLevel.php'=>'/database/rateGJStars211.php','/database/getGJComments19.php'=>'/database/getGJComments21.php','/database/uploadGJComment19.php'=>'/database/uploadGJComment21.php','/database/uploadGJLevel19.php'=>'/database/uploadGJLevel21.php','/database/deleteGJLevelUser19.php'=>'/database/deleteGJLevelUser20.php','/database/updateGJDesc19.php'=>'/database/updateGJDesc20.php','/database/deleteGJComment19.php'=>'/database/deleteGJComment20.php','/database/getGJLevels.php'=>'/database/getGJLevels21.php','/database/downloadGJLevel.php'=>'/database/downloadGJLevel22.php','/database/likeGJLevel.php'=>'/database/likeGJItem211.php','/database/uploadGJLevel.php'=>'/database/uploadGJLevel21.php','/database/updateGJUserScore.php'=>'/database/updateGJUserScore22.php','/database/getGJScores.php'=>'/database/getGJScores20.php','/database/rateGJStars.php'=>'/database/rateGJStars211.php','/database/getGJScores19.php'=>'/database/getGJScores20.php','/database/getGJComments.php'=>'/database/getGJComments21.php','/database/uploadGJComment.php'=>'/database/uploadGJComment21.php','/database/likeGJItem.php'=>'/database/likeGJItem211.php','/database/deleteGJLevelUser.php'=>'/database/deleteGJLevelUser20.php','/database/deleteGJComment.php'=>'/database/deleteGJComment20.php',]; // why are there so many
+    '/database/updateGJUserScore21.php'=>'/database/updateGJUserScore22.php','/database/downloadGJLevel21.php'=>'/database/downloadGJLevel22.php','/database/downloadGJLevel20.php'=>'/database/downloadGJLevel22.php','/database/getGJComments20.php'=>'/database/getGJComments21.php','/database/likeGJItem20.php'=>'/database/likeGJItem211.php','/database/uploadGJComment20.php'=>'/database/uploadGJComment21.php','/database/rateGJStars20.php'=>'/database/rateGJStars211.php','/database/getGJLevels19.php'=>'/database/getGJLevels21.php','/database/updateGJUserScore19.php'=>'/database/updateGJUserScore22.php','/database/getGJMapPacks.php'=>'/database/getGJMapPacks21.php','/database/downloadGJLevel19.php'=>'/database/downloadGJLevel22.php','/database/rateGJLevel.php'=>'/database/rateGJStars211.php','/database/getGJComments19.php'=>'/database/getGJComments21.php','/database/uploadGJComment19.php'=>'/database/uploadGJComment21.php','/database/uploadGJLevel19.php'=>'/database/uploadGJLevel21.php','/database/deleteGJLevelUser19.php'=>'/database/deleteGJLevelUser20.php','/database/updateGJDesc19.php'=>'/database/updateGJDesc20.php','/database/deleteGJComment19.php'=>'/database/deleteGJComment20.php','/database/getGJLevels.php'=>'/database/getGJLevels21.php','/database/downloadGJLevel.php'=>'/database/downloadGJLevel22.php','/database/likeGJLevel.php'=>'/database/likeGJItem211.php','/database/uploadGJLevel.php'=>'/database/uploadGJLevel21.php','/database/updateGJUserScore.php'=>'/database/updateGJUserScore22.php','/database/getGJScores.php'=>'/database/getGJScores20.php','/database/rateGJStars.php'=>'/database/rateGJStars211.php','/database/getGJScores19.php'=>'/database/getGJScores20.php','/database/getGJComments.php'=>'/database/getGJComments21.php','/database/uploadGJComment.php'=>'/database/uploadGJComment21.php','/database/likeGJItem.php'=>'/database/likeGJItem211.php','/database/deleteGJLevelUser.php'=>'/database/deleteGJLevelUser20.php','/database/deleteGJComment.php'=>'/database/deleteGJComment20.php','/database/likeGJItem21.php'=>'/database/likeGJItem211.php',]; // why are there so many
 const SECRETS=[ // a quick thing to verify secrets to cut down on spam
     '/database/deleteGJAccComment20.php'=>COMMONSECRET,
     '/database/deleteGJComment20.php'=>COMMONSECRET,
@@ -277,15 +277,29 @@ function getLogDb(): ?PDO {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ts INTEGER NOT NULL,
             ip TEXT,
-            target TEXT,
+            host TEXT,
             path TEXT,
             status INTEGER,
             request_body TEXT,
-            response_body TEXT
+            response_body TEXT,
+            orig_host TEXT,
+            orig_path TEXT,
+            orig_request_body TEXT,
+            orig_response_body TEXT
         )');
         $existingCols=$db->query('PRAGMA table_info(requests)')->fetchAll(PDO::FETCH_COLUMN,1);
         if (!in_array('ip',$existingCols,true)) {
             $db->exec('ALTER TABLE requests ADD COLUMN ip TEXT');
+        }
+        if (in_array('target',$existingCols,true) && !in_array('host',$existingCols,true)) {
+            $db->exec('ALTER TABLE requests RENAME COLUMN target TO host');
+        } elseif (!in_array('host',$existingCols,true)) {
+            $db->exec('ALTER TABLE requests ADD COLUMN host TEXT');
+        }
+        foreach (['orig_host','orig_path','orig_request_body','orig_response_body'] as $col) {
+            if (!in_array($col,$existingCols,true)) {
+                $db->exec('ALTER TABLE requests ADD COLUMN '.$col.' TEXT');
+            }
         }
         $db->exec('CREATE INDEX IF NOT EXISTS idx_logs_ts ON requests(ts)');
         $db->exec('CREATE INDEX IF NOT EXISTS idx_logs_ip ON requests(ip)');
@@ -327,33 +341,48 @@ function pruneTxtLogIfNeeded(): void {
 }
 function writeLog(string $target,string $path,int $status,string $reqBody,string $respBody): void {
     if (!LOGGING) return;
+    global $origHost,$origBare,$origBody,$origRespBody;
     $ip=$_SERVER['REMOTE_ADDR'] ?? '';
+    $oHost=$origHost ?? $target;
+    $oPath=$origBare ?? $path;
+    $oReq=$origBody ?? $reqBody;
+    $oResp=$origRespBody ?? '';
     if (LOGMODE==='txt') {
-        writeLogTxt($ip,$target,$path,$status,$reqBody,$respBody);
+        writeLogTxt($ip,$target,$path,$status,$reqBody,$respBody,$oHost,$oPath,$oReq,$oResp);
     } else if (LOGMODE==='sql') {
-        writeLogSql($ip,$target,$path,$status,$reqBody,$respBody);
+        writeLogSql($ip,$target,$path,$status,$reqBody,$respBody,$oHost,$oPath,$oReq,$oResp);
     }
 }
-function writeLogTxt(string $ip,string $target,string $path,int $status,string $reqBody,string $respBody): void {
-    $entry=$ip.' http://'.$target.$path.' '.$status."\n".$reqBody."\n".$respBody."\n---\n";
+function writeLogTxt(string $ip,string $target,string $path,int $status,string $reqBody,string $respBody,string $origHost,string $origPath,string $origReqBody,string $origRespBody): void {
+    $entry=$ip.' http://'.$target.$path.' '.$status."\n"
+        .'[original]  http://'.$origHost.$origPath."\n"
+        .'[original request]  '.$origReqBody."\n"
+        .'[original response] '.$origRespBody."\n"
+        .'[forwarded request]  '.$reqBody."\n"
+        .'[forwarded response] '.$respBody."\n"
+        ."---\n";
     @file_put_contents(LOGFILE,$entry,FILE_APPEND|LOCK_EX);
     if (random_int(1,LOGSIZE_CHECK_CHANCE)===1) {
         pruneTxtLogIfNeeded();
     }
 }
-function writeLogSql(string $ip,string $target,string $path,int $status,string $reqBody,string $respBody): void {
+function writeLogSql(string $ip,string $target,string $path,int $status,string $reqBody,string $respBody,string $origHost,string $origPath,string $origReqBody,string $origRespBody): void {
     $db=getLogDb();
     if ($db===null) return;
     try {
-        $stmt=$db->prepare('INSERT INTO requests (ts,ip,target,path,status,request_body,response_body) VALUES (:ts,:ip,:target,:path,:status,:req,:resp)');
+        $stmt=$db->prepare('INSERT INTO requests (ts,ip,host,path,status,request_body,response_body,orig_host,orig_path,orig_request_body,orig_response_body) VALUES (:ts,:ip,:host,:path,:status,:req,:resp,:ohost,:opath,:oreq,:oresp)');
         $stmt->execute([
             ':ts'=>time(),
             ':ip'=>$ip,
-            ':target'=>$target,
+            ':host'=>$target,
             ':path'=>$path,
             ':status'=>$status,
             ':req'=>$reqBody,
             ':resp'=>$respBody,
+            ':ohost'=>$origHost,
+            ':opath'=>$origPath,
+            ':oreq'=>$origReqBody,
+            ':oresp'=>$origRespBody,
         ]);
         if (random_int(1,LOGSIZE_CHECK_CHANCE)===1) {
             pruneLogDbIfNeeded($db);
@@ -557,6 +586,10 @@ $method=$_SERVER['REQUEST_METHOD'];
 $uri=$_SERVER['REQUEST_URI'];
 $bare=parse_url($uri,PHP_URL_PATH) ?: '/';
 $body=file_get_contents('php://input');
+$origHost=$rawHost;
+$origBare=$bare;
+$origBody=$body;
+$origRespBody='';
 $uaWhitelisted=($target===ROBTOPGAMES) || ($target===BOOMLINGS && strpos($bare,'/database/accounts/')===0) || ($target===BOOMLINGS && $bare==='/database/');
 if (!$uaWhitelisted && ($_SERVER['HTTP_USER_AGENT'] ?? '')) { // spam protection, but whitelist the account related pages as well as the default /database/ page, which is what the actual server does
     writeLog($target,$bare,403,$body,'blocked: user-agent present: '.($_SERVER['HTTP_USER_AGENT'] ?? ''));
@@ -572,6 +605,7 @@ foreach (getallheaders() as $k=>$v) {
 if ($method!=='POST') { // GET requests don't really matter here, since they're not used by GD. we're just gonna bypass them in case someone wants to access the account management pages or smth.
     $fwd[]='Host: '.$target;
     [$s,$rh,$rb]=sendRequest($target,$uri,$method,$fwd,$body);
+    $origRespBody=$rb;
     respondAndExit($s,$rh,$rb,$target,$uri,$body);
 }
 if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') { // login fix
@@ -760,6 +794,7 @@ $newBody=$modified ? http_build_query($flat) : $body;
 $fwd[]='Host: '.$target;
 $fwd[]='Content-Type: application/x-www-form-urlencoded';
 [$status,$respHeaders,$respBody]=sendRequest($target,$bare,'POST',$fwd,$newBody);
+$origRespBody=$respBody;
 if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
     $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
 }
