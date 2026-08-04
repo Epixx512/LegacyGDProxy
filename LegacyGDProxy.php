@@ -151,7 +151,7 @@ function sendRequest(string $host,string $path,string $method,array $headers,str
     $timeout=(in_array($path,ROBTOPGAMESPATHS,true) || $path==='/database/getGJLevels21.php') ? 60 : 10; // increase the timeout for save/load and level search since those can take longer
     $ch=curl_init();
     curl_setopt_array($ch,[
-        CURLOPT_URL=>'http://'.$host.$path,CURLOPT_RESOLVE=>[$host.':80:'.$ip],CURLOPT_CUSTOMREQUEST=>$method,CURLOPT_RETURNTRANSFER=>true,CURLOPT_HEADER=>true,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_TIMEOUT=>$timeout,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_LOW_SPEED_LIMIT=>1,CURLOPT_LOW_SPEED_TIME=>30,CURLOPT_HTTPHEADER=>$headers,]);
+        CURLOPT_URL=>'https://'.$host.$path,CURLOPT_RESOLVE=>[$host.':443:'.$ip],CURLOPT_CUSTOMREQUEST=>$method,CURLOPT_RETURNTRANSFER=>true,CURLOPT_HEADER=>true,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_TIMEOUT=>$timeout,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_LOW_SPEED_LIMIT=>1,CURLOPT_LOW_SPEED_TIME=>30,CURLOPT_HTTPHEADER=>$headers,]);
     if ($method==='POST' || $body!=='') {
         curl_setopt($ch,CURLOPT_POSTFIELDS,$body);
     }
