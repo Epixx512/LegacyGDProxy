@@ -707,6 +707,11 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
         $flat['binaryVersion']='47';
         $modified=true;
     }
+    if ($bare==='/database/getGJDailyLevel.php' && isset($flat['weekly']) && $flat['weekly']==0) { // weekly=0 means daily, which is now type=0. this block isn't even necessary since getGJDailyLevel will fall back to the daily level if no type parameter is passed. futureproofing i guess.
+        $flat['type']=0;
+        unset($flat['weekly']);
+        $modified=true;
+    }
     if ($bare==='/database/getGJDailyLevel.php' && isset($flat['weekly']) && $flat['weekly']==1) { // if weekly is set to 1, remove it and instead add type=1, since event levels are now a thing and the server wants type=1 for weekly now instead of weekly=1.
         $flat['type']=1;
         unset($flat['weekly']);
