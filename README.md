@@ -1,6 +1,7 @@
 this is a php script that takes requests to your server with Host headers www.boomlings.com and www.robtopgames.org, and modifies them to work with the geometry dash servers in the modern day. it supports versions from 1.0 to 2.113. THIS IS NOT A PRIVATE SERVER!
 this should get pretty much every online feature functional. login+save+load work in 1.9-2.113. commenting and getting/downloading levels work on 2.0 and earlier. you can view level comments from 1.2. and so much more!
 you can also search "gdspdailyhistory", "gdspweeklyhistory", "gdspsent", or "gdspeventhistory" if you want those lists. "gdsp" is short for the original name of this project, "GDSecondaryProxy", which was in the form of a python 3 script.
+
 claude opus 4.6 was used to make skeleton code and to fix difficult bugs. some parts of the code were inspired by GDPS implementations, most notably https://github.com/Cvolton/GMDprivateServer/.
 thanks to https://boomlings.dev for providing documentation for the server endpoints and parameters. charles proxy and proxifier were used to capture http traffic from 2.113.
 ngsolve.py is the file that contains the ng guard logic. this is part of the feature that lets you use non-whitelisted audios.
