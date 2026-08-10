@@ -837,8 +837,23 @@ if ($musicLibUrl !== null && trim($respBody) !== '-1') {
     }
     $respBody = implode('~|~', $songParts);
 }
-if (($target===BOOMLINGS && $bare==='/database/getGJSongInfo.php' && trim($respBody)==='-1') || ($target===BOOMLINGS && $bare==='/database/getGJSongInfo.php' && trim($respBody)==='-2')) {
+if ($target===BOOMLINGS && $bare==='/database/getGJSongInfo.php' && (trim($respBody)==='-1' || trim($respBody)==='-2')) { // -2 actually means the song has been removed from newgrounds or can't be found rather than not being whitelisted. so just change that to not confuse the player.
     $ngSong=fetchNGSongInfo($flat['songID'] ?? '');
-    if ($ngSong!==null) $respBody=$ngSong;
-} // check if the song is allowed for use. if not, then do the bypass. i'm unsure if -2 is even needed here. the game considers -2 to be the "not allowed" signal, but the server returns -1 for non-whitelisted songs. i'm just doing both to be safe.
+    if ($ngSong!==null) {
+        $respBody=$ngSong;
+    } else {
+        $respBody='-1';
+    }
+}
+if ($target===BOOMLINGS && $bare==='/database/getGJSongInfo.php' && trim($respBody)!=='-1') { // check if the song is allowed for use. -1 means not whitelisted.
+    $songParts = explode('~|~', $respBody);
+    for ($i = 0; $i < count($songParts) - 1; $i += 2) {
+        if ($songParts[$i] === '10') {
+            $url = urldecode($songParts[$i + 1]);
+            $url = preg_replace('/^https:\/\//i', 'http://', $url);
+            $songParts[$i + 1] = urlencode($url);
+        }
+    }
+    $respBody = implode('~|~', $songParts);
+}
 respondAndExit($status,$respHeaders,$respBody,$target,$bare,$newBody);
