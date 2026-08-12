@@ -7,6 +7,8 @@ const LOGMAXBYTES=300*1024*1024; // storage size quota (in bytes) for the log fi
 const LOGSIZE_CHECK_CHANCE=12; // roughly how often the script will check the log file size. the denominator under 1. so for example 20 means 1 in 20 chance on each log entry. less is more chance.
 const NGWHITELISTBYPASS=false; // turn on if you want to use non-whitelisted songs. you will need the ngsolve.py file.
 const NGSOLVEPATH=''; // path to the ngsolve.py file. python 3 is required for this.
+const LOCALLEVELS=false; // toggle the local levels feature. override a level download response by level id, to help make newer levels playable on older game versions.
+const LOCALLEVELSDIR=''; // path to directory holding your txt files which contain your level data responses. format <id>.txt.
 // these lines shouldn't need to be touched, but idk perhaps you will need to for some reason
 const BOOMLINGS='www.boomlings.com';
 const ROBTOPGAMES='www.robtopgames.org';
@@ -188,6 +190,14 @@ function parseColonKV(string $text): array { // read the response from the endpo
         $d[$parts[$i]]=$parts[$i+1];
     }
     return $d;
+}
+function getLocalLevelOverride(string $levelID): ?string {
+    if (!LOCALLEVELS || LOCALLEVELSDIR==='' || $levelID==='' || !ctype_digit($levelID)) return null;
+    $path=rtrim(LOCALLEVELSDIR,'/').'/'.$levelID.'.txt';
+    if (!is_file($path)) return null;
+    $contents=@file_get_contents($path);
+    if ($contents===false) return null;
+    return trim($contents);
 }
 function lookupUser(string $username,string $key): ?string {
     $text=requestEndpoint(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$username]);
@@ -798,7 +808,14 @@ if ($target===BOOMLINGS&&$bare==='/database/getGJSongInfo.php') { // add support
 $newBody=$modified ? http_build_query($flat) : $body;
 $fwd[]='Host: '.$target;
 $fwd[]='Content-Type: application/x-www-form-urlencoded';
-[$status,$respHeaders,$respBody]=sendRequest($target,$bare,'POST',$fwd,$newBody);
+$localOverride=($target===BOOMLINGS && $bare==='/database/downloadGJLevel22.php') ? getLocalLevelOverride($flat['levelID'] ?? '') : null;
+if ($localOverride!==null) {
+    $status=200;
+    $respHeaders=[];
+    $respBody=$localOverride;
+} else {
+    [$status,$respHeaders,$respBody]=sendRequest($target,$bare,'POST',$fwd,$newBody);
+}
 $origRespBody=$respBody;
 if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
     $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
