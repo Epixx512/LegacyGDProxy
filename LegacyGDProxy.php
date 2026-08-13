@@ -3,8 +3,6 @@ const LOGGING=false;
 const LOGMODE=''; // txt or sql. these fields aren't needed if logging is set to false. for sql, sqlite will need to be installed first.
 const LOGFILE=''; // path to txt file for logs. txt logs are just everything stored in a new set of lines per log entry. can get messy pretty quickly.
 const LOGDB=''; // path to sqlite database for logs. sql logs are stored in these columns: id (log entry number), ts (unix timestamp), ip (the client's ip address), host, path, status, request_body, response_body, orig_host, orig_path, orig_request_body, orig_response_body (the last 4 being what the client actually sent/received before the proxy rewrote anything) in a table called "requests".
-const LOGMAXBYTES=300*1024*1024; // storage size quota (in bytes) for the log file. oldest log entries will be trimmed when space is exceeded.
-const LOGSIZE_CHECK_CHANCE=12; // roughly how often the script will check the log file size. the denominator under 1. so for example 20 means 1 in 20 chance on each log entry. less is more chance.
 const NGWHITELISTBYPASS=false; // turn on if you want to use non-whitelisted songs. you will need the ngsolve.py file.
 const NGSOLVEPATH=''; // path to the ngsolve.py file. python 3 is required for this.
 const LOCALLEVELS=false; // toggle the local levels feature. override a level download response by level id, to help make newer levels playable on older game versions.
@@ -320,35 +318,6 @@ function getLogDb(): ?PDO {
     }
     return $db;
 }
-function pruneLogDbIfNeeded(PDO $db): void {
-    clearstatcache(true,LOGDB);
-    $size=@filesize(LOGDB);
-    if ($size===false || $size<LOGMAXBYTES) return;
-    try {
-        $count=(int)$db->query('SELECT COUNT(*) FROM requests')->fetchColumn();
-        if ($count===0) return;
-        $deleteBatch=max(100,intval($count*0.1));
-        $db->exec('DELETE FROM requests WHERE id IN (SELECT id FROM requests ORDER BY ts ASC LIMIT '.$deleteBatch.')');
-        $db->exec('PRAGMA incremental_vacuum(2000)');
-    } catch (Throwable $e) {
-    }
-}
-function pruneTxtLogIfNeeded(): void {
-    clearstatcache(true,LOGFILE);
-    $size=@filesize(LOGFILE);
-    if ($size===false || $size<LOGMAXBYTES) return;
-    $keepBytes=intval(LOGMAXBYTES*0.8);
-    $src=@fopen(LOGFILE,'rb');
-    if ($src===false) return;
-    fseek($src,-$keepBytes,SEEK_END);
-    $tmp=LOGFILE.'.tmp';
-    $dst=@fopen($tmp,'wb');
-    if ($dst===false) { fclose($src); return; }
-    stream_copy_to_stream($src,$dst);
-    fclose($src);
-    fclose($dst);
-    @rename($tmp,LOGFILE);
-}
 function writeLog(string $target,string $path,int $status,string $reqBody,string $respBody): void {
     if (!LOGGING) return;
     global $origHost,$origBare,$origBody,$origRespBody;
@@ -372,9 +341,6 @@ function writeLogTxt(string $ip,string $target,string $path,int $status,string $
         .'[forwarded response] '.$respBody."\n"
         ."---\n";
     @file_put_contents(LOGFILE,$entry,FILE_APPEND|LOCK_EX);
-    if (random_int(1,LOGSIZE_CHECK_CHANCE)===1) {
-        pruneTxtLogIfNeeded();
-    }
 }
 function writeLogSql(string $ip,string $target,string $path,int $status,string $reqBody,string $respBody,string $origHost,string $origPath,string $origReqBody,string $origRespBody): void {
     $db=getLogDb();
@@ -394,9 +360,6 @@ function writeLogSql(string $ip,string $target,string $path,int $status,string $
             ':oreq'=>$origReqBody,
             ':oresp'=>$origRespBody,
         ]);
-        if (random_int(1,LOGSIZE_CHECK_CHANCE)===1) {
-            pruneLogDbIfNeeded($db);
-        }
     } catch (Throwable $e) {
     }
 }
