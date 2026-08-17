@@ -5,8 +5,8 @@ const LOGFILE=''; // path to txt file for logs. txt logs are just everything sto
 const LOGDB=''; // path to sqlite database for logs. sql logs are stored in these columns: id (log entry number), ts (unix timestamp), ip (the client's ip address), host, path, status, request_body, response_body, orig_host, orig_path, orig_request_body, orig_response_body (the last 4 being what the client actually sent/received before the proxy rewrote anything) in a table called "requests".
 const NGWHITELISTBYPASS=false; // turn on if you want to use non-whitelisted songs. you will need the ngsolve.py file.
 const NGSOLVEPATH=''; // path to the ngsolve.py file. python 3 is required for this.
-const LOCALLEVELS=false; // toggle the local levels feature. override a level download response by level id, to help make newer levels playable on older game versions.
-const LOCALLEVELSDIR=''; // path to directory holding your txt files which contain your level data responses. format <id>.txt.
+const LOCALLEVELS=false;
+const LOCALLEVELSDIR='';
 // these lines shouldn't need to be touched, but idk perhaps you will need to for some reason
 const BOOMLINGS='www.boomlings.com';
 const ROBTOPGAMES='www.robtopgames.org';
@@ -20,6 +20,7 @@ const SEED2KEY='85271';
 const COMMENTKEY='29481';
 const COMMENTSALT='xPT6iUrtws0J';
 const LEVELPASSKEY='26364';
+const LEVELHASHSALT='xI25fpAapCQg';
 const ROBTOPGAMESPATHS=[
     '/database/accounts/backupGJAccountNew.php','/database/accounts/syncGJAccountNew.php',];
 const ENDPOINTREWRITES=[
@@ -189,13 +190,83 @@ function parseColonKV(string $text): array { // read the response from the endpo
     }
     return $d;
 }
-function getLocalLevelOverride(string $levelID): ?string {
+function getLocalLevelString(string $levelID): ?string {
     if (!LOCALLEVELS || LOCALLEVELSDIR==='' || $levelID==='' || !ctype_digit($levelID)) return null;
     $path=rtrim(LOCALLEVELSDIR,'/').'/'.$levelID.'.txt';
     if (!is_file($path)) return null;
     $contents=@file_get_contents($path);
     if ($contents===false) return null;
     return trim($contents);
+}
+function gjLevelHash1(string $undecodedLevelString): string {
+    if (strlen($undecodedLevelString)<41) {
+        return sha1($undecodedLevelString.LEVELHASHSALT);
+    }
+    $m=intdiv(strlen($undecodedLevelString),40);
+    $chars=array_fill(0,40,'?');
+    for ($i=39; $i>=0; $i--) {
+        $chars[$i]=$undecodedLevelString[$i*$m];
+    }
+    return sha1(implode('',$chars).LEVELHASHSALT);
+}
+function gjResolveLevelPassword(string $rawPassword): string {
+    if ($rawPassword===''||$rawPassword==='0'||$rawPassword==='1') {
+        return $rawPassword===''?'0':$rawPassword;
+    }
+    $padded=$rawPassword.str_repeat('=',(4-strlen($rawPassword)%4)%4);
+    $decoded=base64_decode($padded);
+    if ($decoded===false) return '0';
+    $plain=xorCipher($decoded,LEVELPASSKEY);
+    $number=(int)$plain;
+    if ($number!==0 && $number!==1 && $number<1000000) {
+        $number+=1000000;
+    }
+    return (string)$number;
+}
+function gjLevelHash2(array $flat): string {
+    $vals=[
+        $flat['6']??'0',
+        $flat['18']??'0',
+        $flat['17']??'0',
+        $flat['1']??'0',
+        $flat['38']??'0',
+        $flat['19']??'0',
+        gjResolveLevelPassword($flat['27']??'0'),
+        $flat['41']??'0',
+    ];
+    $vals=array_map(fn($v)=>$v===''?'0':$v,$vals);
+    return sha1(implode(',',$vals).LEVELHASHSALT);
+}
+function normalizeLocalLevelString(string $localLevelString): ?string {
+    $standardB64=str_replace(['-','_'],['+','/'],$localLevelString);
+    $maybeDecoded=base64_decode($standardB64,true);
+    if ($maybeDecoded!==false && substr($maybeDecoded,0,2)==="\x1f\x8b") {
+        return strtr(base64_encode($maybeDecoded),'+/','-_');
+    }
+    $compressed=gzencode($localLevelString);
+    if ($compressed===false) return null;
+    return strtr(base64_encode($compressed),'+/','-_');
+}
+function applyLocalLevelString(string $liveRespBody,string $localLevelString): ?string {
+    if (trim($liveRespBody)==='-1' || trim($liveRespBody)==='') return null;
+    $sections=explode('#',$liveRespBody);
+    $parts=explode(':',$sections[0]);
+    $n=count($parts);
+    $levelStringIdx=null;
+    $flat=[];
+    for ($i=0; $i<$n-1; $i+=2) {
+        $flat[$parts[$i]]=$parts[$i+1];
+        if ($parts[$i]==='4') $levelStringIdx=$i+1;
+    }
+    if ($levelStringIdx===null) return null;
+    $encoded=normalizeLocalLevelString($localLevelString);
+    if ($encoded===null) return null;
+    $parts[$levelStringIdx]=$encoded;
+    $flat['4']=$encoded;
+    $sections[0]=implode(':',$parts);
+    if (isset($sections[1])) $sections[1]=gjLevelHash1($encoded);
+    if (isset($sections[2])) $sections[2]=gjLevelHash2($flat);
+    return implode('#',$sections);
 }
 function lookupUser(string $username,string $key): ?string {
     $text=requestEndpoint(BOOMLINGS,'/database/getGJUsers20.php',['secret'=>COMMONSECRET,'str'=>$username]);
@@ -416,14 +487,16 @@ function injectVersionLabel(string $entry,bool $skipEncode=false): string { // m
         $standardB64=str_replace(['-','_'],['+','/'],$parts[$levelStringIdx]);
         $decoded=base64_decode($standardB64);
         if ($decoded!==false) {
-            $decompressed=@gzuncompress($decoded);
+            $decompressed=@zlib_decode($decoded);
             if ($decompressed!==false) {
                 $parts[$levelStringIdx]=$decompressed;
             }
         }
     }
-    if ($skipEncode && $descIdx!==null) {
-        $parts[$descIdx]=str_replace([':','|','~','#'],'',base64_decode($parts[$descIdx]));
+    if ($descIdx!==null) {
+        $descPlain=(string)base64_decode($parts[$descIdx]);
+        $descPlain=preg_replace('/ GD Version \d+\.\d+(, Password .+)?$/','',$descPlain);
+        $parts[$descIdx]=$skipEncode ? str_replace([':','|','~','#'],'',$descPlain) : base64_encode($descPlain);
     }
     if ($skipEncode && $passIdx!==null && $pass!==null) {
         $parts[$passIdx]=$pass;
@@ -771,13 +844,11 @@ if ($target===BOOMLINGS&&$bare==='/database/getGJSongInfo.php') { // add support
 $newBody=$modified ? http_build_query($flat) : $body;
 $fwd[]='Host: '.$target;
 $fwd[]='Content-Type: application/x-www-form-urlencoded';
-$localOverride=($target===BOOMLINGS && $bare==='/database/downloadGJLevel22.php') ? getLocalLevelOverride($flat['levelID'] ?? '') : null;
-if ($localOverride!==null) {
-    $status=200;
-    $respHeaders=[];
-    $respBody=$localOverride;
-} else {
-    [$status,$respHeaders,$respBody]=sendRequest($target,$bare,'POST',$fwd,$newBody);
+$localLevelString=($target===BOOMLINGS && $bare==='/database/downloadGJLevel22.php') ? getLocalLevelString($flat['levelID'] ?? '') : null;
+[$status,$respHeaders,$respBody]=sendRequest($target,$bare,'POST',$fwd,$newBody);
+if ($localLevelString!==null && $status===200) {
+    $overridden=applyLocalLevelString($respBody,$localLevelString);
+    if ($overridden!==null) $respBody=$overridden;
 }
 $origRespBody=$respBody;
 if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
