@@ -844,11 +844,16 @@ if ($target===BOOMLINGS&&$bare==='/database/getGJSongInfo.php') { // add support
 $newBody=$modified ? http_build_query($flat) : $body;
 $fwd[]='Host: '.$target;
 $fwd[]='Content-Type: application/x-www-form-urlencoded';
-$localLevelString=($target===BOOMLINGS && $bare==='/database/downloadGJLevel22.php') ? getLocalLevelString($flat['levelID'] ?? '') : null;
+$isDownloadLevel=($target===BOOMLINGS && $bare==='/database/downloadGJLevel22.php');
 [$status,$respHeaders,$respBody]=sendRequest($target,$bare,'POST',$fwd,$newBody);
-if ($localLevelString!==null && $status===200) {
-    $overridden=applyLocalLevelString($respBody,$localLevelString);
-    if ($overridden!==null) $respBody=$overridden;
+if ($isDownloadLevel && $status===200 && trim($respBody)!=='-1' && trim($respBody)!=='') {
+    $respFlat=parseColonKV(explode('#',$respBody,2)[0]);
+    $realLevelID=$respFlat['1'] ?? ($flat['levelID'] ?? '');
+    $localLevelString=getLocalLevelString($realLevelID);
+    if ($localLevelString!==null) {
+        $overridden=applyLocalLevelString($respBody,$localLevelString);
+        if ($overridden!==null) $respBody=$overridden;
+    }
 }
 $origRespBody=$respBody;
 if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
