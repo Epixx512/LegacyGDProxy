@@ -735,11 +735,10 @@ if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
     if (!isset($flat['gjp']) && !isset($flat['gjp2']) && !isset($flat['accountID'])) { // since 1.9 and earlier don't send user/pass and instead rely on udid, it obviously won't be able to update your score. instead just return 1 to let the client continue without actually updating the score.
         respondAndExit(200,[],'1',$target,$bare,$body);
     }
-    if (!isset($flat['diamonds']) || !isset($flat['accSpider']) || !isset($flat['accExplosion'])) { // 2.0 will fail to update score by default because the server now requires these 3 fields. just setting them to 0 is lame, so what this does is it takes whatever stats are currently on your profile and uses those.
-        $info=parseColonKV(requestEndpoint(BOOMLINGS,'/database/getGJUserInfo20.php',['targetAccountID'=>$flat['accountID'] ?? '','secret'=>COMMONSECRET]));
-        if (!isset($flat['diamonds'])) $flat['diamonds']=$info['46'] ?? '0';
-        if (!isset($flat['accSpider'])) $flat['accSpider']=$info['43'] ?? '0';
-        if (!isset($flat['accExplosion'])) $flat['accExplosion']=$info['48'] ?? '0';
+    if (!isset($flat['diamonds']) || !isset($flat['accSpider']) || !isset($flat['accExplosion'])) { // 2.0 will fail to update score by default because the server now requires these 3 fields. just default them to 0.
+        if (!isset($flat['diamonds'])) $flat['diamonds']='0';
+        if (!isset($flat['accSpider'])) $flat['accSpider']='0';
+        if (!isset($flat['accExplosion'])) $flat['accExplosion']='0';
         $flat['seed2']=makeSeed2($flat); // we'll need to then remake the seed2 because the current one will no longer be valid
         $modified=true;
     }
