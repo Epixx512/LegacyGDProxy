@@ -636,7 +636,7 @@ $origHost=$rawHost;
 $origBare=$bare;
 $origBody=$body;
 $origRespBody='';
-$uaWhitelisted=($target===ROBTOPGAMES) || ($target===BOOMLINGS && strpos($bare,'/database/accounts/')===0) || ($target===BOOMLINGS && $bare==='/database/') || ($target===BOOMLINGS && $bare==='/');
+$uaWhitelisted=($target===ROBTOPGAMES) || ($target===BOOMLINGS && strpos($bare,'/database/accounts/')===0) || ($target===BOOMLINGS && $bare==='/database/') || ($target===BOOMLINGS && $bare==='/') || ($target===BOOMLINGS && strpos($bare,'/cdn-cgi/')===0);
 if (!$uaWhitelisted && ($_SERVER['HTTP_USER_AGENT'] ?? '')) { // spam protection, but whitelist the account related pages as well as the default /database/ page, which is what the actual server does
     writeLog($target,$bare,403,$body,'blocked: user-agent present: '.($_SERVER['HTTP_USER_AGENT'] ?? ''));
     http_response_code(403);
