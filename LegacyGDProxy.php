@@ -10,6 +10,7 @@ const LOCALLEVELSDIR='';
 // these lines shouldn't need to be touched, but idk perhaps you will need to for some reason
 const BOOMLINGS='www.boomlings.com';
 const ROBTOPGAMES='www.robtopgames.org';
+const ROBTOPGAMESNET='www.robtopgames.net';
 const COMMONSECRET='Wmfd2893gb7';
 const ACCOUNTSECRET='Wmfv3899gc9';
 const LEVELSECRET='Wmfv2898gc9';
@@ -623,6 +624,8 @@ if ($rawHost===BOOMLINGS) {
     $target=BOOMLINGS;
 } elseif ($rawHost===ROBTOPGAMES) {
     $target=ROBTOPGAMES;
+} elseif ($rawHost===ROBTOPGAMESNET) {
+    $target=ROBTOPGAMESNET;
 } else {
     http_response_code(400);
     echo 'unknown host';
@@ -636,7 +639,7 @@ $origHost=$rawHost;
 $origBare=$bare;
 $origBody=$body;
 $origRespBody='';
-$uaWhitelisted=($target===ROBTOPGAMES) || ($target===BOOMLINGS && strpos($bare,'/database/accounts/')===0) || ($target===BOOMLINGS && $bare==='/database/') || ($target===BOOMLINGS && $bare==='/') || ($target===BOOMLINGS && strpos($bare,'/cdn-cgi/')===0);
+$uaWhitelisted=($target===ROBTOPGAMES) || ($target===ROBTOPGAMESNET) || ($target===BOOMLINGS && strpos($bare,'/database/accounts/')===0) || ($target===BOOMLINGS && $bare==='/database/') || ($target===BOOMLINGS && $bare==='/') || ($target===BOOMLINGS && strpos($bare,'/cdn-cgi/')===0);
 if (!$uaWhitelisted && ($_SERVER['HTTP_USER_AGENT'] ?? '')) { // spam protection, but whitelist the account related pages as well as the default /database/ page, which is what the actual server does
     writeLog($target,$bare,403,$body,'blocked: user-agent present: '.($_SERVER['HTTP_USER_AGENT'] ?? ''));
     http_response_code(403);
@@ -699,7 +702,7 @@ if (isset(SECRETS[$bare]) && ($flat['secret'] ?? '')!==SECRETS[$bare]) { // secr
     respondAndExit(200,[],'-1',$target,$bare,$body);
 }
 $modified=false;
-if ($target===ROBTOPGAMES && in_array($bare,ROBTOPGAMESPATHS,true)) {
+if (($target===ROBTOPGAMES || $target===ROBTOPGAMESNET) && in_array($bare,ROBTOPGAMESPATHS,true)) {
     if (isset($flat['password'])) { // modify save/load to use accountID and gjp2 rather than userName and password, this is now necessary as of around march 2026
         $flat['gjp2']=makeGjp2($flat['password']);
         unset($flat['password']);
@@ -856,7 +859,8 @@ if ($isDownloadLevel && $status===200 && trim($respBody)!=='-1' && trim($respBod
 }
 $origRespBody=$respBody;
 if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
-    $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
+    // $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
+    $respBody="http://www.robtopgames.org"
 }
 // apply desc modifications and tweaks for old picky versions
 if ($target===BOOMLINGS && in_array($bare,[
