@@ -682,6 +682,10 @@ if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') { //
 if (isset(ENDPOINTREWRITES[$bare])) { // modify the request's url if it's inside the rewrites array
     $bare=ENDPOINTREWRITES[$bare];
 }
+if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
+    // $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
+    respondAndExit(200,[],'http://www.robtopgames.org',$target,$bare,$body);
+}
 // 2.0/1.9 save/load endpoint rewrites
 if ($bare==='/database/accounts/syncGJAccount20.php') {
     $target=ROBTOPGAMES;
@@ -858,10 +862,6 @@ if ($isDownloadLevel && $status===200 && trim($respBody)!=='-1' && trim($respBod
     }
 }
 $origRespBody=$respBody;
-if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
-    // $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
-    $respBody="http://www.robtopgames.org"
-}
 // apply desc modifications and tweaks for old picky versions
 if ($target===BOOMLINGS && in_array($bare,[
     '/database/downloadGJLevel22.php','/database/getGJLevels21.php',],true)) {
