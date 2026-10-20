@@ -88,6 +88,24 @@ const SECRETS=[ // a quick thing to verify secrets to cut down on spam
     '/database/deleteGJLevelList.php'=>LEVELSECRET,
     '/database/rateGJDemon21.php'=>MODSECRET,
     '/database/suggestGJStars20.php'=>MODSECRET,
+    '/database/accounts/openedRegister.php'=>ACCOUNTSECRET,
+    '/database/deleteGJEditorSounds.php'=>COMMONSECRET,
+    '/database/downloadGJEditorSounds.php'=>COMMONSECRET,
+    '/database/getGJEditorSounds.php'=>COMMONSECRET,
+    '/database/uploadGJEditorSounds.php'=>COMMONSECRET,
+    '/database/reportGJContent.php'=>COMMONSECRET,
+    '/database/followGJUser.php'=>COMMONSECRET,
+    '/database/getGJFollowing.php'=>COMMONSECRET,
+    '/database/muteGJUser.php'=>COMMONSECRET,
+    '/database/unfollowGJUser.php'=>COMMONSECRET,
+    '/database/getGJSongUsage.php'=>COMMONSECRET,
+    '/database/getGJThreadInvites.php'=>COMMONSECRET,
+    '/database/getGJThreadMembers.php'=>COMMONSECRET,
+    '/database/getGJThreadMessages.php'=>COMMONSECRET,
+    '/database/getGJThreads.php'=>COMMONSECRET,
+    '/database/searchGJThreadMessages.php'=>COMMONSECRET,
+    '/database/sendGJThreadMessage.php'=>COMMONSECRET,
+    '/database/updateGJThread.php'=>COMMONSECRET,
 ];
 const VERSIONMAP=[ // map used for the version in the desc
     '1'=>'1.0','2'=>'1.1','3'=>'1.2','4'=>'1.3','5'=>'1.4','6'=>'1.5','7'=>'1.6','10'=>'1.7','18'=>'1.8','19'=>'1.9','20'=>'2.0','21'=>'2.1','22'=>'2.2',];
@@ -682,10 +700,6 @@ if ($target===BOOMLINGS && $bare==='/database/accounts/loginGJAccount.php') { //
 if (isset(ENDPOINTREWRITES[$bare])) { // modify the request's url if it's inside the rewrites array
     $bare=ENDPOINTREWRITES[$bare];
 }
-if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
-    // $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
-    respondAndExit(200,[],'http://www.robtopgames.org',$target,$bare,$body);
-}
 // 2.0/1.9 save/load endpoint rewrites
 if ($bare==='/database/accounts/syncGJAccount20.php') {
     $target=ROBTOPGAMES;
@@ -862,6 +876,10 @@ if ($isDownloadLevel && $status===200 && trim($respBody)!=='-1' && trim($respBod
     }
 }
 $origRespBody=$respBody;
+if ($target===BOOMLINGS && $bare==='/database/getAccountURL.php') {
+    $respBody=str_replace('https://','http://',$respBody); // to allow it to go through the proxy again
+    // respondAndExit(200,[],'http://www.robtopgames.org',$target,$bare,$body);
+}
 // apply desc modifications and tweaks for old picky versions
 if ($target===BOOMLINGS && in_array($bare,[
     '/database/downloadGJLevel22.php','/database/getGJLevels21.php',],true)) {
